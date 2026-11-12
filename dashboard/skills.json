@@ -1,0 +1,362 @@
+[
+{
+"skill": "ai-ark",
+"stage": "Build the list",
+"what_for": "AI Ark: people and company search, TAM sizing, lookalikes, contacts at named accounts, enrichment.",
+"call": "Test first"
+},
+{
+"skill": "ai-personalization-prompts",
+"stage": "Sharpen the offer",
+"what_for": "AI prompts that generate personalisation variables, plus two templates that use them.",
+"call": "Reference"
+},
+{
+"skill": "atl-btl-messaging",
+"stage": "Sharpen the offer",
+"what_for": "Message executives (ATL) differently from end-users (BTL).",
+"call": "Adapt"
+},
+{
+"skill": "bridgebound-firmographic-15",
+"stage": "Find the trigger",
+"what_for": "15 firmographic triggers: funding, M&A, growth, launches.",
+"call": "Adapt"
+},
+{
+"skill": "bridgebound-history-16",
+"stage": "Find the trigger",
+"what_for": "16 history triggers: demo no-shows, closed-lost, champion moves, reciprocity.",
+"call": "Adapt"
+},
+{
+"skill": "bridgebound-in-market-20",
+"stage": "Find the trigger",
+"what_for": "20 in-market triggers: adjacent vendors, competitors, time-based events.",
+"call": "Adapt"
+},
+{
+"skill": "bridgebound-relationship-39",
+"stage": "Find the trigger",
+"what_for": "39 relationship triggers: investors, customers, employees, advisors, your network.",
+"call": "Adapt"
+},
+{
+"skill": "bridgebound-symptoms-11",
+"stage": "Find the trigger",
+"what_for": "11 symptom triggers: visible problems, missing positives, influencer audiences.",
+"call": "Adapt"
+},
+{
+"skill": "buying-signals-6",
+"stage": "Find the trigger",
+"what_for": "6 buying signals ranked by purchase correlation, with outreach timing.",
+"call": "Adapt"
+},
+{
+"skill": "campaign-delivery",
+"stage": "Launch it",
+"what_for": "The campaign build checklist, kick-off through deploy.",
+"call": "Reference"
+},
+{
+"skill": "campaign-performance-diagnostic",
+"stage": "Read the numbers",
+"what_for": "HTML performance diagnostic from an Instantly/Lemlist export, built around positive replies.",
+"call": "Use"
+},
+{
+"skill": "clay-cli",
+"stage": "Build the list",
+"what_for": "Build and run Clay workflows, tables and enrichments from the terminal.",
+"call": "Reference"
+},
+{
+"skill": "cold-call-scripts",
+"stage": "Write it",
+"what_for": "1-minute cold call, no-show and voicemail scripts plus objection responses.",
+"call": "Use"
+},
+{
+"skill": "cold-email-4-sequence",
+"stage": "Write it",
+"what_for": "The standard 4-email sequence structure and timing.",
+"call": "Conflict"
+},
+{
+"skill": "cold-email-copy",
+"stage": "Write it",
+"what_for": "Email anatomy, top templates, benchmarks and A/B testing rules.",
+"call": "Conflict"
+},
+{
+"skill": "cold-email-templates-34",
+"stage": "Write it",
+"what_for": "34 templates: first touch, follow-up and re-engagement.",
+"call": "Conflict"
+},
+{
+"skill": "copywriter",
+"stage": "Write it",
+"what_for": "Write a launch-ready 2-3 step cold email sequence against hard length, structure and craft rules.",
+"call": "Conflict"
+},
+{
+"skill": "crawford-method",
+"stage": "Sharpen the offer",
+"what_for": "Jordan Crawford's PQS/PVP framework, the Tension Triangle and the 7-part email.",
+"call": "Adapt"
+},
+{
+"skill": "email-1-variations-7",
+"stage": "Write it",
+"what_for": "Seven Email 1 structures plus Email 2 and 3 templates.",
+"call": "Adapt"
+},
+{
+"skill": "email-metrics-benchmarks",
+"stage": "Read the numbers",
+"what_for": "Metrics to track, levers that move them, and benchmarks.",
+"call": "Use"
+},
+{
+"skill": "email-writing-frameworks",
+"stage": "Write it",
+"what_for": "Five frameworks: Do the Maths, Short-Trigger, Similar Companies, Neutral Insight, Leader Responsibilities.",
+"call": "Reference"
+},
+{
+"skill": "exa-search",
+"stage": "Build the list",
+"what_for": "Exa semantic and keyword web search for profile discovery and company research.",
+"call": "Reference"
+},
+{
+"skill": "fireflies-mcp",
+"stage": "Work the replies",
+"what_for": "Set up and use the Fireflies MCP for transcripts.",
+"call": "Later"
+},
+{
+"skill": "fireflies-usage",
+"stage": "Work the replies",
+"what_for": "Search call transcripts and pull action items and context.",
+"call": "Later"
+},
+{
+"skill": "floqer",
+"stage": "Build the list",
+"what_for": "Floqer workflow and enrichment platform: API, actions, sources, build loop.",
+"call": "Skip"
+},
+{
+"skill": "freckle",
+"stage": "Build the list",
+"what_for": "Freckle CLI: enrich, score and process lead lists, build datasets and workflows.",
+"call": "Skip"
+},
+{
+"skill": "google-maps-scraper",
+"stage": "Build the list",
+"what_for": "Scrape Google Maps for local businesses via Apify into a CSV.",
+"call": "Use"
+},
+{
+"skill": "gtm-philosophy",
+"stage": "Find the market",
+"what_for": "Core GTM principles and how to coordinate channels.",
+"call": "Reference"
+},
+{
+"skill": "gtm-plays-11",
+"stage": "Find the trigger",
+"what_for": "11 signal-based plays with templates (new hires, bad reviews, followers, and more).",
+"call": "Adapt"
+},
+{
+"skill": "icp-matrix",
+"stage": "Find the market",
+"what_for": "Build a 5-sheet ICP Matrix (accounts, prospects, personas, signal scoring, case studies) as .xlsx + CSVs.",
+"call": "Reference"
+},
+{
+"skill": "icp-tam-mapper",
+"stage": "Find the market",
+"what_for": "Turn a domain or segment into an ICP Matrix plus a live AI Ark TAM/SAM/SOM breakdown.",
+"call": "Test first"
+},
+{
+"skill": "inbound-triggers-30",
+"stage": "Find the trigger",
+"what_for": "30 inbound premises and how to prioritise the response.",
+"call": "Reference"
+},
+{
+"skill": "instantly",
+"stage": "Launch it",
+"what_for": "Instantly API v2 reference: campaigns, leads, sending accounts, analytics.",
+"call": "Reference"
+},
+{
+"skill": "instantly-api",
+"stage": "Launch it",
+"what_for": "Instantly campaign creation, lead loading and HTML formatting recipes.",
+"call": "Reference"
+},
+{
+"skill": "josh-braun-copywriting",
+"stage": "Write it",
+"what_for": "Josh Braun's five principles for copy that doesn't sound salesy.",
+"call": "Adapt"
+},
+{
+"skill": "lemlist",
+"stage": "Launch it",
+"what_for": "Lemlist API reference: campaigns, leads, sequences, activities.",
+"call": "Reference"
+},
+{
+"skill": "lemlist-campaign-builder",
+"stage": "Launch it",
+"what_for": "Build a full Lemlist campaign (email + LinkedIn steps) end to end via the API.",
+"call": "Reference"
+},
+{
+"skill": "lemlist-inbox",
+"stage": "Work the replies",
+"what_for": "Read and reply to Lemlist conversations through the API.",
+"call": "Reference"
+},
+{
+"skill": "lemlist-reporting",
+"stage": "Read the numbers",
+"what_for": "Pull Lemlist campaign analytics.",
+"call": "Reference"
+},
+{
+"skill": "linkedin-campaign-complete",
+"stage": "Write it",
+"what_for": "LinkedIn targeting, copy rules, human-like steps and message templates.",
+"call": "Use"
+},
+{
+"skill": "linkedin-limits-warmup",
+"stage": "Launch it",
+"what_for": "LinkedIn limits and the warm-up protocol for new or dormant accounts.",
+"call": "Use"
+},
+{
+"skill": "linkedin-scraper",
+"stage": "Build the list",
+"what_for": "LinkedIn posts and everyone who reacted or commented, via Apify.",
+"call": "Test first"
+},
+{
+"skill": "linkedin-success-factors",
+"stage": "Launch it",
+"what_for": "Pre-launch checklist for LinkedIn campaigns.",
+"call": "Reference"
+},
+{
+"skill": "list-building-tips",
+"stage": "Build the list",
+"what_for": "Source mixing, data-quality hierarchy and a pre-launch list checklist.",
+"call": "Reference"
+},
+{
+"skill": "list-dedup",
+"stage": "Build the list",
+"what_for": "Deduplicate contact and company lists before enrichment.",
+"call": "Use"
+},
+{
+"skill": "messaging-templates",
+"stage": "Write it",
+"what_for": "Six message structures: Ask Before Pitch, Upfront Value, Case Study Reference and more.",
+"call": "Reference"
+},
+{
+"skill": "meta-ad-counts",
+"stage": "Build the list",
+"what_for": "Count a company's Meta ads (active/inactive, video/static) via Apify.",
+"call": "Use"
+},
+{
+"skill": "miro",
+"stage": "Build your own tools",
+"what_for": "Read and build Miro boards: flows, process maps, campaign architecture.",
+"call": "Skip"
+},
+{
+"skill": "ocean-lookalike",
+"stage": "Find the market",
+"what_for": "Clone a customer or seed domain into a list of similar companies.",
+"call": "Use"
+},
+{
+"skill": "outbound-triggers-6",
+"stage": "Find the trigger",
+"what_for": "6 pure-outbound premises: CXO passdown, groundswell, multi-persona, cold.",
+"call": "Reference"
+},
+{
+"skill": "outreach-4-categories",
+"stage": "Find the market",
+"what_for": "Sort leads into Inbound, Postbound, Bridgebound or Outbound and pick the approach.",
+"call": "Reference"
+},
+{
+"skill": "personalization-6-buckets",
+"stage": "Sharpen the offer",
+"what_for": "Six buckets of prospect research to personalise from.",
+"call": "Reference"
+},
+{
+"skill": "personalization-hooks",
+"stage": "Sharpen the offer",
+"what_for": "Strong vs lite hooks and how to tie research to relevance.",
+"call": "Reference"
+},
+{
+"skill": "personalization-playbooks",
+"stage": "Sharpen the offer",
+"what_for": "How much to personalise, by outreach category.",
+"call": "Reference"
+},
+{
+"skill": "pqs-builder",
+"stage": "Find the market",
+"what_for": "Pain-qualified segments: membership test, measured count, sample rows, backtest, build spec.",
+"call": "Adapt"
+},
+{
+"skill": "pvp-builder",
+"stage": "Sharpen the offer",
+"what_for": "Go wide on offers (gifts, mockups, risk reversal, done-for-you), then gate them down to ones you can deliver.",
+"call": "Adapt"
+},
+{
+"skill": "railway-deploy",
+"stage": "Build your own tools",
+"what_for": "Host a script, daily job, webhook or small API on Railway.",
+"call": "Skip"
+},
+{
+"skill": "sdr-outbound-rules",
+"stage": "Write it",
+"what_for": "Writing rules, allowed frameworks, tone by offer type and a review checklist.",
+"call": "Reference"
+},
+{
+"skill": "signal-detection",
+"stage": "Find the trigger",
+"what_for": "30 intent signals with reliability tiers, freshness windows and stacking rules.",
+"call": "Adapt"
+},
+{
+"skill": "tam-scoring",
+"stage": "Find the market",
+"what_for": "Build an 80-100 point scoring model and tier a company list T1-T4.",
+"call": "Test first"
+}
+]

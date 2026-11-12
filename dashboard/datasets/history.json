@@ -1,0 +1,14 @@
+{
+  "title": "Every Instantly campaign",
+  "description": "Lifetime sends, replies, bounces and opportunities for every Instantly campaign, as the machine last synced them.",
+  "source": {
+    "kind": "call",
+    "connector": "n8n",
+    "tool": "get_data_table_rows",
+    "args": {
+      "dataTableId": "MSL9SJtzQWAmBBNe",
+      "projectId": "VMz3etLKQWG9fjUc",
+      "limit": 100
+    }
+  }
+}

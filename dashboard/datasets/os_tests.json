@@ -1,0 +1,14 @@
+{
+  "title": "GTM OS tests",
+  "description": "The tests to run before any OS idea reaches the machine: arms, size, win rule, status and result.",
+  "source": {
+    "kind": "call",
+    "connector": "n8n",
+    "tool": "get_data_table_rows",
+    "args": {
+      "dataTableId": "CaviadlLW2z3MRh7",
+      "projectId": "VMz3etLKQWG9fjUc",
+      "limit": 100
+    }
+  }
+}

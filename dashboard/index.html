@@ -1,0 +1,384 @@
+<meta name="dash-one-writer">
+<style>
+.os{display:flex;flex-direction:column;gap:var(--cds-gap-lg);font-family:var(--font-anthropic-sans);color:var(--color-fg)}
+.os-sig{display:flex;height:3px;width:96px}.os-sig i{flex:1}.os-sig i:nth-child(1){background:#FF1010}.os-sig i:nth-child(2){background:#0BEA2E}.os-sig i:nth-child(3){background:#0080FF}
+.os-head{display:flex;flex-direction:column;gap:var(--cds-gap-sm)}
+.os-head h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0;text-wrap:balance}
+.os-lede{color:var(--color-fg-muted);margin:0;max-width:72ch}
+.os-banner{border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md) var(--cds-pad-lg);background:var(--color-panel);display:flex;gap:var(--cds-gap-md);align-items:baseline;flex-wrap:wrap;font-size:var(--cds-font-size-body)}
+.os-banner b{font-weight:var(--cds-font-weight-medium)}
+.os-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--color-border-line);padding-bottom:var(--cds-pad-sm)}
+.os-tab{font:inherit;font-size:var(--cds-font-size-body);background:transparent;color:var(--color-fg-muted);border:1px solid var(--color-border-line);border-radius:999px;padding:6px 14px;cursor:pointer;min-height:36px}
+.os-tab[aria-selected="true"]{background:var(--color-fg);color:var(--color-bg);border-color:var(--color-fg)}
+.os-tab:focus-visible{outline:2px solid var(--color-fg);outline-offset:2px}
+.os-sec{display:flex;flex-direction:column;gap:var(--cds-gap-lg)}
+.os-sec h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:0}
+.os-sec h3{font-size:var(--cds-font-size-body);font-weight:var(--cds-font-weight-medium);margin:0}
+.os-note{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);margin:0;max-width:80ch}
+.os-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--cds-gap-md)}
+@media (max-width:720px){.os-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.os-tile{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md) var(--cds-pad-lg);display:flex;flex-direction:column;gap:4px;min-width:0}
+.os-tile b{font-family:var(--font-anthropic-serif);font-weight:400;font-size:28px;font-variant-numeric:tabular-nums;line-height:1.1}
+.os-tile span{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.os-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--cds-gap-md)}
+.os-card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg);display:flex;flex-direction:column;gap:10px;min-width:0}
+.os-card-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.os-card h4{margin:0;font-size:var(--cds-font-size-body);font-weight:var(--cds-font-weight-medium)}
+.os-seg{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.os-dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;font-size:var(--cds-font-size-caption)}
+.os-dl dt{color:var(--color-fg-muted)}.os-dl dd{margin:0}
+.os-nums{display:flex;gap:16px;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.os-nums b{color:var(--color-fg);font-weight:var(--cds-font-weight-medium)}
+.os-pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;color:var(--color-fg-muted)}
+.os-pill.ok{color:var(--color-ok)}.os-pill.warn{color:var(--color-warn)}.os-pill.bad{color:var(--color-bad)}
+.os-wrap{overflow-x:auto;border:1px solid var(--color-border-line);border-radius:var(--cds-radius)}
+.os-table{border-collapse:collapse;width:100%;min-width:640px;font-size:var(--cds-font-size-caption)}
+.os-table th,.os-table td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--color-border-line)}
+.os-table th{color:var(--color-fg-muted);font-weight:var(--cds-font-weight-medium);background:var(--color-panel);white-space:nowrap}
+.os-table tbody tr:last-child td{border-bottom:0}
+.os-table td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.os-table th.num{text-align:right}
+.os-chart{position:relative;min-height:260px}
+.os-chart svg text{fill:var(--cds-text-secondary);font-size:11px}
+.os-tip{position:absolute;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);box-shadow:var(--cds-shadow-popover);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--color-fg);max-width:260px}
+.os-filter{display:flex;gap:var(--cds-gap-sm);align-items:center;flex-wrap:wrap;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.os-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--color-fg-muted);font-size:var(--cds-font-size-body);max-width:80ch}
+[data-dash-source-state=refreshing]{opacity:.5}
+</style>
+
+<div class="os">
+  <header class="os-head" id="os-header">
+    <div class="os-sig" aria-hidden="true"><i></i><i></i><i></i></div>
+    <h1>Magna GTM OS</h1>
+    <p class="os-lede">The test bench for the GTM OS: plays, tests and benchmarks, run beside the Outbound Machine. It reads the machine's campaigns and results and never changes them.</p>
+  </header>
+
+  <div class="os-banner" id="os-safety">
+    <b>Test mode.</b>
+    <span>Nothing here sends email or changes the machine. Test plays and tests live in their own tables; machine data is read-only.</span>
+  </div>
+
+  <div class="os-tabs" role="tablist" aria-label="Sections">
+    <button class="os-tab" role="tab" id="tab-plays" aria-controls="plays" aria-selected="true">Plays</button>
+    <button class="os-tab" role="tab" id="tab-results" aria-controls="results" aria-selected="false">Results vs benchmarks</button>
+    <button class="os-tab" role="tab" id="tab-tests" aria-controls="tests" aria-selected="false">Tests</button>
+    <button class="os-tab" role="tab" id="tab-playbook" aria-controls="playbook" aria-selected="false">Playbook</button>
+    <button class="os-tab" role="tab" id="tab-learnings" aria-controls="learnings" aria-selected="false">What worked</button>
+  </div>
+
+  <section class="os-sec" id="plays" role="tabpanel" aria-labelledby="tab-plays">
+    <div class="os-tiles">
+      <div class="os-tile"><b data-draw="t-osplays" data-source="os_plays_summary" data-field="plays" data-row="0">—</b><span>OS test plays</span></div>
+      <div class="os-tile"><b data-draw="t-ossent" data-source="os_plays_summary" data-field="sent" data-row="0">—</b><span>sent from test plays</span></div>
+      <div class="os-tile"><b data-draw="t-plan" data-source="plan_summary" data-field="campaigns" data-row="0">—</b><span>machine campaigns planned</span></div>
+      <div class="os-tile"><b data-draw="t-planlive" data-source="plan_summary" data-field="approved" data-row="0">—</b><span>machine campaigns approved</span></div>
+    </div>
+
+    <div class="os-sec" id="os-test-plays">
+      <h2>Test plays</h2>
+      <p class="os-note">Plays built in the GTM OS for testing. Each has a segment, an offer and a bar it must clear before anything moves into the machine.</p>
+      <div class="os-cards" data-draw="os-plays" data-source="os_plays"></div>
+    </div>
+
+    <div class="os-sec" id="machine-campaigns">
+      <h2>Machine campaigns as plays</h2>
+      <p class="os-note">The machine's own campaign plan, read-only. The KPI column is each campaign's success bar.</p>
+      <div class="os-wrap">
+        <table class="os-table" data-source="plan" data-row-key="id">
+          <thead><tr><th data-field="name">Campaign</th><th data-field="regions">Regions</th><th data-field="channel_mix">Channels</th><th data-field="start_date">Starts</th><th data-field="kpi">Success bar</th><th class="num" data-field="lead_target">Lead target</th><th data-field="status">Status</th></tr></thead>
+          <tbody data-draw="plan-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="os-sec" id="results" role="tabpanel" aria-labelledby="tab-results" hidden>
+    <p class="os-lede"><b data-draw="r-above" data-source="results_summary" data-field="above_median" data-row="0">—</b> of <b data-draw="r-n" data-source="results_summary" data-field="campaigns" data-row="0">—</b> campaigns with 50+ sends beat the cold-email median reply rate of 0.64%, and <b data-draw="r-top" data-source="results_summary" data-field="top_decile" data-row="0">—</b> reach the top-decile line of 2.75%.</p>
+    <div class="os-tiles">
+      <div class="os-tile"><b data-draw="r-sent" data-source="results_summary" data-field="sent" data-row="0">—</b><span>emails sent, all campaigns</span></div>
+      <div class="os-tile"><b data-draw="r-rate" data-source="results_summary" data-field="reply_rate" data-row="0">—</b><span>overall reply rate</span></div>
+      <div class="os-tile"><b data-draw="r-opps" data-source="results_summary" data-field="opportunities" data-row="0">—</b><span>opportunities</span></div>
+      <div class="os-tile"><b data-draw="r-best" data-source="results_summary" data-field="best_rate" data-row="0">—</b><span>best reply rate</span></div>
+    </div>
+    <div class="os-sec" id="reply-chart">
+      <h2>Reply rate by campaign, against the benchmarks</h2>
+      <p class="os-note">Benchmarks from a few hundred B2B campaigns (GTM OS): median 0.64%, top decile 2.75%. Event and inbound lists usually run far above cold, so judge them separately. Campaigns with fewer than 50 sends and internal tests are left out.</p>
+      <div class="os-chart" data-draw="reply-chart" data-source="history"></div>
+    </div>
+    <div class="os-wrap">
+      <table class="os-table" data-source="history" data-row-key="campaign_id">
+        <thead><tr><th data-field="campaign">Campaign</th><th data-field="status">Status</th><th class="num" data-field="sent">Sent</th><th class="num" data-field="replies_unique">Replies</th><th class="num" data-field="reply_rate">Reply %</th><th class="num" data-field="opportunities">Opps</th><th class="num" data-field="bounced">Bounced</th></tr></thead>
+        <tbody data-draw="history-rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="os-sec" id="tests" role="tabpanel" aria-labelledby="tab-tests" hidden>
+    <h2>Tests before anything reaches the machine</h2>
+    <p class="os-note">Same rule the Coach uses: 30+ sends per arm before reading a result. A test that wins becomes a proposal for the machine; you decide.</p>
+    <div class="os-wrap">
+      <table class="os-table" data-source="os_tests" data-row-key="code">
+        <thead><tr><th data-field="code">Test</th><th data-field="name">What</th><th data-field="arms">Arms</th><th data-field="size">Size</th><th data-field="win_rule">Wins if</th><th data-field="needs">Needs</th><th data-field="status">Status</th><th data-field="result">Result</th></tr></thead>
+        <tbody data-draw="test-rows"></tbody>
+      </table>
+    </div>
+    <div class="os-sec" id="how-to-test">
+      <h3>How a test runs</h3>
+      <ol class="os-steps">
+        <li>Open the GTM OS on your laptop with <code>gtm-work</code> and load the play with <code>/play &lt;name&gt;</code>.</li>
+        <li>Build the list and copy there; <code>/launch</code> creates the campaign in Instantly or lemlist as a draft.</li>
+        <li>You read it and press go. Results come back here through the play's numbers.</li>
+        <li>When a test clears its bar, it becomes a proposal for the machine.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="os-sec" id="playbook" role="tabpanel" aria-labelledby="tab-playbook" hidden>
+    <h2>Playbook: the OS's 60 skills</h2>
+    <p class="os-note">Every skill in the GTM OS, by stage, with your call on each: Use, Adapt into the machine, Test first, Later, Conflict or Skip. Reference skills are API guides and frameworks the OS reads as needed.</p>
+    <div class="os-filter">
+      <label for="skill-call">Show</label>
+      <select class="dash-select" id="skill-call" aria-label="Filter skills by call">
+        <option value="">All calls</option>
+        <option value="Use">Use</option>
+        <option value="Adapt">Adapt</option>
+        <option value="Test first">Test first</option>
+        <option value="Later">Later</option>
+        <option value="Conflict">Conflict</option>
+        <option value="Skip">Skip</option>
+        <option value="Reference">Reference</option>
+      </select>
+    </div>
+    <div class="os-wrap">
+      <table class="os-table" data-source="skills" data-row-key="skill">
+        <thead><tr><th data-field="skill">Skill</th><th data-field="stage">Stage</th><th data-field="call">Call</th><th data-field="what_for">What it's for</th></tr></thead>
+        <tbody data-draw="skill-rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="os-sec" id="learnings" role="tabpanel" aria-labelledby="tab-learnings" hidden>
+    <h2>What worked</h2>
+    <p class="os-note">The Coach's findings from the machine, read-only, excluding retired ones. Learnings from OS test plays will be added here as they land.</p>
+    <div class="os-wrap">
+      <table class="os-table" data-source="learnings" data-row-key="id">
+        <thead><tr><th data-field="batch">Week</th><th data-field="area">Area</th><th data-field="status">Status</th><th data-field="finding">Finding</th><th data-field="result">Result</th></tr></thead>
+        <tbody data-draw="learning-rows"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+// Fixed references the person chose (GTM OS benchmarks)
+window.OS_MEDIAN = 0.64;
+window.OS_TOP = 2.75;
+window.OS_MIN_SENT = 50;
+
+dash.calc('os_plays_summary', {
+  inputs: ['os_plays'],
+  title: 'Test plays totals',
+  description: 'Number of OS test plays and emails sent from them.',
+  fn: (plays) => [{ plays: plays.length, sent: d3.sum(plays, (p) => +p.sent || 0) }]
+});
+dash.calc('plan_summary', {
+  inputs: ['plan'],
+  title: 'Machine campaign plan totals',
+  description: 'Campaigns in the machine plan, and how many are approved.',
+  fn: (plan) => [{ campaigns: plan.length, approved: plan.filter((c) => c.status === 'approved').length }]
+});
+dash.calc('results_summary', {
+  inputs: ['history'],
+  title: 'Results against benchmarks',
+  description: 'Totals over every non-test campaign; campaigns compared to the benchmarks need 50+ sends.',
+  fn: (history) => {
+    const real = history.filter((c) => c.era !== 'test');
+    const judged = real.filter((c) => (+c.sent || 0) >= 50);
+    const sent = d3.sum(real, (c) => +c.sent || 0);
+    const replies = d3.sum(real, (c) => +c.replies_unique || 0);
+    return [{
+      campaigns: judged.length,
+      above_median: judged.filter((c) => +c.reply_rate > 0.64).length,
+      top_decile: judged.filter((c) => +c.reply_rate >= 2.75).length,
+      sent,
+      reply_rate: sent ? Math.round((replies / sent) * 10000) / 100 : 0,
+      opportunities: d3.sum(real, (c) => +c.opportunities || 0),
+      best_rate: d3.max(judged, (c) => +c.reply_rate) || 0
+    }];
+  }
+});
+
+(function () {
+  const tabs = Array.from(document.querySelectorAll('.os-tab'));
+  function open(id) {
+    tabs.forEach((t) => {
+      const on = t.getAttribute('aria-controls') === id;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      const sec = document.getElementById(t.getAttribute('aria-controls'));
+      if (sec) sec.hidden = !on;
+    });
+    dash.setLink(id);
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => open(t.getAttribute('aria-controls'))));
+  const start = (location.hash || '').slice(1);
+  if (start && tabs.some((t) => t.getAttribute('aria-controls') === start)) open(start);
+  const sel = document.getElementById('skill-call');
+  if (sel) sel.addEventListener('change', () => dash.draw('skill-rows'));
+})();
+</script>
+
+<script>
+const fmt = d3.format(',');
+const pct = (v) => (v == null || isNaN(+v) ? '—' : (+v).toFixed(2) + '%');
+function tile(name, id, field, f) {
+  dash.draw(name, (el) => {
+    const d = dash.data(id);
+    if (d.status !== 'ok' || !d.data || !d.data[0]) { el.textContent = '—'; return; }
+    el.textContent = f(d.data[0][field]);
+  });
+}
+tile('t-osplays', 'os_plays_summary', 'plays', fmt);
+tile('t-ossent', 'os_plays_summary', 'sent', fmt);
+tile('t-plan', 'plan_summary', 'campaigns', fmt);
+tile('t-planlive', 'plan_summary', 'approved', fmt);
+tile('r-above', 'results_summary', 'above_median', fmt);
+tile('r-n', 'results_summary', 'campaigns', fmt);
+tile('r-top', 'results_summary', 'top_decile', fmt);
+tile('r-sent', 'results_summary', 'sent', fmt);
+tile('r-rate', 'results_summary', 'reply_rate', pct);
+tile('r-opps', 'results_summary', 'opportunities', fmt);
+tile('r-best', 'results_summary', 'best_rate', pct);
+
+function pill(text) {
+  const s = document.createElement('span');
+  const t = String(text || '').toLowerCase();
+  s.className = 'os-pill' + (/(approved|active|adopted|scale|won|use)/.test(t) ? ' ok' : /(planning|trial|proposed|not started|iterate|adapt|test first|paused|later)/.test(t) ? ' warn' : /(stop|rejected|conflict|failed)/.test(t) ? ' bad' : '');
+  s.textContent = text || '—';
+  return s;
+}
+function rows(tbody, data, keyCol, cols) {
+  tbody.replaceChildren(...data.map((r) => {
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-key', encodeURIComponent(String(r[keyCol])));
+    cols.forEach((c) => {
+      const td = document.createElement('td');
+      const v = r[c.f];
+      if (c.pill) td.appendChild(pill(v));
+      else td.textContent = c.fmt ? c.fmt(v) : (v == null || v === '' ? '—' : String(v));
+      if (c.num) td.className = 'num';
+      tr.appendChild(td);
+    });
+    return tr;
+  }));
+}
+function emptyRow(tbody, n, text) {
+  const tr = document.createElement('tr'); const td = document.createElement('td');
+  td.colSpan = n; td.textContent = text; td.className = 'os-note'; tr.appendChild(td); tbody.replaceChildren(tr);
+}
+
+dash.draw('os-plays', (el) => {
+  const d = dash.data('os_plays');
+  if (d.status !== 'ok') { el.textContent = d.status === 'loading' ? '' : 'Failed to load'; return; }
+  el.replaceChildren(...d.data.map((p) => {
+    const c = document.createElement('article'); c.className = 'os-card'; c.id = 'play-' + p.slug;
+    const top = document.createElement('div'); top.className = 'os-card-top';
+    const h = document.createElement('h4'); h.textContent = p.title;
+    h.setAttribute('data-source', 'os_plays'); h.setAttribute('data-field', 'title'); h.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
+    const st = pill(p.status); st.setAttribute('data-source', 'os_plays'); st.setAttribute('data-field', 'status'); st.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
+    top.append(h, st);
+    const seg = document.createElement('div'); seg.className = 'os-seg'; seg.textContent = p.segment;
+    const dl = document.createElement('dl'); dl.className = 'os-dl';
+    [['Offer', p.offer], ['Bar', p.success_bar], ['Platform', p.platform], ['Tests', p.test_code], ['Why now', p.why_now]].forEach(([k, v]) => {
+      const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v || '—'; dl.append(dt, dd);
+    });
+    const nums = document.createElement('div'); nums.className = 'os-nums';
+    [['sent', 'sent'], ['replies', 'replies'], ['positive', 'positive'], ['meetings', 'meetings']].forEach(([f, label]) => {
+      const s = document.createElement('span'); const b = document.createElement('b');
+      b.textContent = fmt(+p[f] || 0); b.setAttribute('data-source', 'os_plays'); b.setAttribute('data-field', f); b.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
+      s.append(b, ' ' + label); nums.appendChild(s);
+    });
+    const log = document.createElement('p'); log.className = 'os-note'; log.textContent = p.log || '';
+    c.append(top, seg, dl, nums, log);
+    return c;
+  }));
+});
+
+dash.draw('plan-rows', (tb) => {
+  const d = dash.data('plan');
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const data = d.data.slice().sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)));
+  rows(tb, data, 'id', [{ f: 'name' }, { f: 'regions' }, { f: 'channel_mix' }, { f: 'start_date' }, { f: 'kpi' }, { f: 'lead_target', num: true, fmt: (v) => (v == null ? '—' : fmt(+v)) }, { f: 'status', pill: true }]);
+});
+
+dash.draw('history-rows', (tb) => {
+  const d = dash.data('history');
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const data = d.data.filter((c) => c.era !== 'test').sort((a, b) => (+b.sent || 0) - (+a.sent || 0));
+  rows(tb, data, 'campaign_id', [{ f: 'campaign' }, { f: 'status', pill: true }, { f: 'sent', num: true, fmt: (v) => fmt(+v || 0) }, { f: 'replies_unique', num: true, fmt: (v) => fmt(+v || 0) }, { f: 'reply_rate', num: true, fmt: pct }, { f: 'opportunities', num: true, fmt: (v) => fmt(+v || 0) }, { f: 'bounced', num: true, fmt: (v) => fmt(+v || 0) }]);
+});
+
+dash.draw('test-rows', (tb) => {
+  const d = dash.data('os_tests');
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  rows(tb, d.data, 'code', [{ f: 'code' }, { f: 'name' }, { f: 'arms' }, { f: 'size' }, { f: 'win_rule' }, { f: 'needs' }, { f: 'status', pill: true }, { f: 'result' }]);
+});
+
+dash.draw('skill-rows', (tb) => {
+  const d = dash.data('skills');
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const sel = document.getElementById('skill-call');
+  const want = sel ? sel.value : '';
+  const data = d.data.filter((s) => !want || s.call === want);
+  if (!data.length) { emptyRow(tb, 4, 'No skills with this call.'); return; }
+  rows(tb, data, 'skill', [{ f: 'skill' }, { f: 'stage' }, { f: 'call', pill: true }, { f: 'what_for' }]);
+});
+
+dash.draw('learning-rows', (tb) => {
+  const d = dash.data('learnings');
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const data = d.data.filter((l) => l.status !== 'retired').sort((a, b) => String(b.batch).localeCompare(String(a.batch)));
+  if (!data.length) { emptyRow(tb, 5, 'No current learnings yet.'); return; }
+  rows(tb, data, 'id', [{ f: 'batch' }, { f: 'area' }, { f: 'status', pill: true }, { f: 'finding' }, { f: 'result' }]);
+});
+
+dash.draw('reply-chart', (el) => {
+  const d = dash.data('history');
+  if (d.status !== 'ok') { el.textContent = d.status === 'error' ? 'Failed to load' : ''; return; }
+  const data = d.data.filter((c) => c.era !== 'test' && (+c.sent || 0) >= window.OS_MIN_SENT)
+    .map((c) => ({ name: c.campaign, rate: +c.reply_rate || 0, sent: +c.sent || 0, id: c.campaign_id }))
+    .sort((a, b) => b.rate - a.rate);
+  el.replaceChildren();
+  if (!data.length) { el.textContent = 'No campaigns with 50+ sends yet.'; return; }
+  const W = el.clientWidth || 600, rowH = 24, top = 26, bottom = 8;
+  const H = top + data.length * rowH + bottom;
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
+    .attr('aria-label', 'Reply rate for each campaign with 50 or more sends, compared with the 0.64% median and 2.75% top-decile benchmarks');
+  // measure label width
+  const probe = svg.append('text').attr('font-size', 11);
+  let lw = 0; data.forEach((r) => { probe.text(r.name); lw = Math.max(lw, probe.node().getComputedTextLength()); });
+  probe.remove();
+  const left = Math.min(Math.max(lw + 10, 80), W * 0.45), right = 48;
+  const max = Math.max(d3.max(data, (r) => r.rate), window.OS_TOP) * 1.08;
+  const x = d3.scaleLinear().domain([0, max]).range([left, W - right]);
+  const y = (i) => top + i * rowH;
+  [window.OS_MEDIAN, window.OS_TOP].forEach((v, i) => {
+    svg.append('line').attr('x1', x(v)).attr('x2', x(v)).attr('y1', top - 6).attr('y2', H - bottom).style('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '3 3');
+    svg.append('text').attr('x', x(v)).attr('y', top - 10).attr('text-anchor', i ? 'end' : 'start').text(i ? 'top decile 2.75%' : 'median 0.64%');
+  });
+  const tip = d3.select(el).append('div').attr('class', 'os-tip').style('opacity', 0);
+  const g = svg.selectAll('g.r').data(data).join('g').attr('class', 'r');
+  g.append('text').attr('x', left - 8).attr('y', (r, i) => y(i) + rowH / 2 + 4).attr('text-anchor', 'end').text((r) => r.name);
+  g.append('rect').attr('x', x(0)).attr('y', (r, i) => y(i) + 5).attr('height', rowH - 10)
+    .attr('width', (r) => Math.max(1, x(r.rate) - x(0)))
+    .style('fill', (r) => (r.rate >= window.OS_TOP ? dash.colors[0] : r.rate > window.OS_MEDIAN ? dash.colors[0] : 'var(--cds-chart-muted)'))
+    .style('opacity', (r) => (r.rate > window.OS_MEDIAN ? 1 : 0.9));
+  g.append('text').attr('x', (r) => x(r.rate) + 4).attr('y', (r, i) => y(i) + rowH / 2 + 4).text((r) => r.rate.toFixed(2) + '%');
+  g.append('rect').attr('x', 0).attr('y', (r, i) => y(i)).attr('width', W).attr('height', rowH).style('fill', 'transparent')
+    .on('pointermove', (ev, r) => {
+      const [mx, my] = d3.pointer(ev, el);
+      tip.style('opacity', 1).style('left', Math.min(mx + 12, el.clientWidth - 200) + 'px').style('top', (my + 12) + 'px')
+        .text(`${r.name}: ${r.rate.toFixed(2)}% reply from ${fmt(r.sent)} sent`);
+    })
+    .on('pointerleave', () => tip.style('opacity', 0));
+});
+</script>

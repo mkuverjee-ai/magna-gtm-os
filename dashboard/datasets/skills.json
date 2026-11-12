@@ -1,0 +1,15 @@
+{
+  "title": "GTM OS skills",
+  "description": "The 60 skills in the GTM OS repo with their stage and your use/adapt/skip call, taken from the repo on 12 Nov 2026.",
+  "source": {
+    "kind": "file",
+    "url": "/_blob/24b4d8efcb3df0d5453644ab52f59dff",
+    "name": "skills.json",
+    "format": "json"
+  },
+  "updated": {
+    "at": "2026-11-12T16:30:00Z",
+    "by": "Claude, from the magna-gtm-os repo"
+  },
+  "fixed": true
+}

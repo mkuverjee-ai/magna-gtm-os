@@ -1,0 +1,14 @@
+{
+  "title": "Machine campaign plan",
+  "description": "The Outbound Machine's campaign plan, read-only: campaigns, regions, success KPI and status.",
+  "source": {
+    "kind": "call",
+    "connector": "n8n",
+    "tool": "get_data_table_rows",
+    "args": {
+      "dataTableId": "E8HlMXFpKUciHSE2",
+      "projectId": "VMz3etLKQWG9fjUc",
+      "limit": 100
+    }
+  }
+}
