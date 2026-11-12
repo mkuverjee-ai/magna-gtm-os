@@ -1,0 +1,5 @@
+# Names import_files.py searches the laptop for, one per line. 4+ characters each.
+magna ai
+magnaai
+magnaverse
+magna forge

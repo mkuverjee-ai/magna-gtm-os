@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# Magna GTM OS: session launcher.
+#
+#   gtm-work
+#
+# Pulls the latest OS and your team's work, checks your setup, loads the
+# company context and what is live in Instantly and Lemlist, then opens
+# Claude Code already knowing all of it.
+# ─────────────────────────────────────────────────────────────
+set -eu
+
+ACCENT='\033[38;5;39m'; WHITE='\033[1;37m'; DIM='\033[90m'
+GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="$HOME/.magna-gtm-config"
+
+ok()   { echo -e "  ${GREEN}✓${RESET} $1"; }
+warn() { echo -e "  ${YELLOW}!${RESET} $1"; }
+fail() { echo -e "  ${RED}✗${RESET} $1"; }
+
+# ── prerequisites ───────────────────────────────────────────
+command -v claude >/dev/null 2>&1 || {
+  fail "Claude Code not found: npm install -g @anthropic-ai/claude-code"; exit 1; }
+command -v python3 >/dev/null 2>&1 || { fail "python3 not found"; exit 1; }
+
+echo ""
+echo -e "  ${ACCENT}MAGNA${RESET} ${WHITE}GTM OS${RESET}  ${DIM}outbound, run from Claude Code${RESET}"
+echo ""
+
+# ── sync first, before anything that can fail ───────────────
+# If a check below is broken, the fix has to be able to reach you.
+cd "$REPO_DIR"
+if [ -z "${GTM_WORK_REEXEC:-}" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+   && git remote get-url origin >/dev/null 2>&1; then
+  BEFORE=$(git rev-parse HEAD 2>/dev/null || echo none)
+  stashed=0
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    git stash push -q -m "gtm-work autostash" && stashed=1
+  fi
+  if pull_out=$(git pull --rebase -q 2>&1); then
+    AFTER=$(git rev-parse HEAD)
+    if [ "$BEFORE" = "$AFTER" ]; then ok "Up to date"
+    else ok "Updated ($(git rev-list --count "$BEFORE..$AFTER") new changes from the team)"; fi
+  else
+    fail "Couldn't pull updates; you may be on an old version"
+    echo "$pull_out" | tail -2 | sed 's/^/      /'
+    AFTER=$BEFORE
+  fi
+  if [ "$stashed" = 1 ] && ! git stash pop -q 2>/dev/null; then
+    fail "Your local changes clash with the update. They're safe in: git stash list"
+    warn "Sort it out before you /save."
+  fi
+  # bash reads a script while running it; if the launcher itself changed, restart as the new one.
+  if [ "$BEFORE" != "$AFTER" ] && ! git diff --quiet "$BEFORE" "$AFTER" -- gtm-work 2>/dev/null; then
+    GTM_WORK_REEXEC=1 exec "$REPO_DIR/gtm-work" "$@"
+  fi
+fi
+
+python3 "$REPO_DIR/gtm.py" self-update 2>/dev/null || true
+
+# ── setup present? ──────────────────────────────────────────
+if [ ! -f "$CONFIG" ]; then
+  fail "Not set up on this laptop yet"
+  echo -e "      Run ${WHITE}./onboard${RESET} once (about two minutes)."
+  echo ""
+  exit 1
+fi
+
+NAME=$(python3 -c "
+import json,os
+try: print(json.load(open(os.path.expanduser('~/.magna-gtm-config'))).get('name') or '')
+except Exception: print('')" 2>/dev/null)
+[ -z "$NAME" ] && { fail "No name in $CONFIG. Run ./onboard."; exit 1; }
+ok "Signed in as ${WHITE}${NAME}${RESET}"
+
+# ── company + work ──────────────────────────────────────────
+echo ""
+python3 "$REPO_DIR/gtm.py" company || true
+
+DOCTOR=$(python3 "$REPO_DIR/gtm.py" doctor 2>/dev/null || true)
+if echo "$DOCTOR" | grep -q "✗"; then
+  echo ""; warn "Setup gaps:"; echo "$DOCTOR" | grep "✗"
+fi
+
+FLAGS=$(python3 "$REPO_DIR/gtm.py" flags 2>/dev/null || true)
+if [ -n "$FLAGS" ]; then echo ""; warn "From your last session:"; echo "$FLAGS"; fi
+
+echo ""
+echo -e "  ${DIM}Live campaigns${RESET}"
+CAMPAIGNS=$(python3 "$REPO_DIR/gtm.py" campaigns 2>/dev/null || true)
+echo "${CAMPAIGNS:-  (none returned)}" | head -25
+PLAYS=$(python3 "$REPO_DIR/gtm.py" plays 2>/dev/null || true)
+RECENT=$(python3 "$REPO_DIR/gtm.py" meetings --limit 3 2>/dev/null | grep -E '^  [0-9]{4}' || true)
+
+echo ""
+echo -e "  ${DIM}/play <name>${RESET}  load a play        ${DIM}/status${RESET}  every campaign, problems first"
+echo -e "  ${DIM}/launch${RESET}       build + load a draft ${DIM}/report${RESET}  live numbers"
+echo -e "  ${DIM}/import${RESET}       pull your files in   ${DIM}/save${RESET}    commit, push, log"
+echo -e "  ${DIM}/update-os${RESET}    get the latest OS without restarting"
+echo ""
+
+# ── launch ──────────────────────────────────────────────────
+PROMPT="You are the Magna GTM OS assistant. The person at the keyboard is ${NAME}, on Magna AI's \
+go-to-market team. Magna AI runs its own outbound: company/context.md holds the ICP, positioning, \
+proof and offers (read it before writing anything). Each segment or campaign is a play in plays/<slug>/. \
+Plays in the repo right now: ${PLAYS:-none}. \
+Live campaigns: ${CAMPAIGNS:-none returned}. \
+Recent calls: ${RECENT:-none logged}. \
+Use ./gtm.py for keys, plays, campaigns, calls and the what-worked log. \
+Greet them by first name, give a three-line read of what is live and anything that looks wrong \
+(paused, bounce protect, unhealthy accounts), and ask what they want to work on. \
+Remind them to /save before they finish."
+
+exec claude --append-system-prompt "$PROMPT" \
+  "I'm ${NAME}. What's live, and what should I work on?"

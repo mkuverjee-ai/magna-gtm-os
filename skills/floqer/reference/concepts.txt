@@ -1,0 +1,950 @@
+Floqer Concepts
+
+Read this before using the API. It explains how Floqer thinks — the mental model
+behind every endpoint, field, and reference format.
+
+INDEX:
+  1. Workflows and Sheets
+  2. Inputs
+  3. Actions
+  4. Data Types
+  5. Variable References
+  6. Action Chain
+  7. Running a Workflow
+  8. Get Action Field Options (dynamic dropdowns)
+  9. Conditional Execution (run_if)
+ 10. Data Sources
+ 11. Get Source Field Options (dynamic dropdowns for sources)
+ 12. Caller Identity (Get User) and Org Knowledge
+
+================================================================================
+1. WORKFLOWS AND SHEETS
+================================================================================
+
+A workflow is a container for one or more sheets. When a workflow is created,
+a main sheet is created automatically. Every operation on inputs, actions,
+data, or runs happens at the sheet level.
+
+A sheet has:
+  - Input columns (the data you feed in)
+  - An action chain (steps that process each row)
+  - Data rows (the actual records)
+  - Runs (execution history)
+  - Settings (auto_run, cache_enabled, cache_since)
+
+If additional sheets are needed — for example, to expand an array of employees
+into individual rows — create them with Create Sheet. Each sheet gets its
+own ID.
+
+Managing sheets (workflow-scoped; scope: workflows:write for create/delete):
+  - Create Sheet — POST /api/v1/workflows/{workflow_id}/sheets
+    Body: {name, auto_run?, cache_enabled?, cache_since?}. Returns the new
+    sheet object including sheet_id.
+  - Get Workflow Overview — GET /api/v1/workflows/{workflow_id}
+    Bootstrap call after List Workflows. Returns workflow metadata, sharing
+    info, and every sheet with settings (auto_run, cache_*) and webhook URLs.
+    data.sheets[0] is the main sheet (sheet_id === workflow_id,
+    is_main_sheet: true); child sheets follow sheets_config.sheetsOrder when
+    set, otherwise creation order.
+  - Delete Sheet — DELETE /api/v1/workflows/{workflow_id}/sheets/{sheet_id}
+    Permanently removes a child sheet and all rows on it. Cannot be undone.
+    Pass the child sheet's UUID as sheet_id — not the parent workflow ID.
+    Main sheet (sheet_id === workflow_id) → 400. Unknown or already-deleted
+    sheet_id → 404. Only the sheet owner can delete; shared users → 403.
+    To remove the main sheet, delete the parent workflow instead.
+
+Key points:
+  - All sheets within a workflow are independent peers — no parent-child
+    hierarchy.
+  - The main sheet is auto-created with the workflow. Its sheet_id equals
+    the workflow_id. The main sheet cannot be deleted separately.
+  - Additional sheets can be added and removed at any time.
+  - Sheet-scoped endpoints follow /workflows/{workflow_id}/sheets/{sheet_id}/...
+    To operate on the main sheet, pass the workflow's ID as both
+    {workflow_id} and {sheet_id}.
+
+================================================================================
+2. INPUTS
+================================================================================
+
+Inputs are the columns of your sheet's data table. They define what data each
+row contains. You add inputs before adding data or configuring actions.
+
+Each input has:
+  - name — the column header, also used as the key when adding data rows
+  - type — helps match fields to action inputs (see Data Types below)
+  - description — human-readable explanation of what this field contains
+
+When you add an input, the response includes a reference string you can copy
+directly into action configurations.
+
+Example: adding an input named "linkedin_url" of type "url" gives you the
+reference {{input.linkedin_url}} for use in action configuration.
+
+⚠ The `name` you pass at create time is what `Add Rows` expects as the JSON
+key — case-sensitive and whitespace-sensitive. The reference token may look
+snake_cased (e.g. `{{input.company_name}}`), but if the input was created
+with `name: "Company Name"` (display-style with space + capital), the row
+JSON key must be the literal `"Company Name"`. Mismatch returns
+`unknown_field`. Inspect `List Inputs` and use the `name` value verbatim.
+
+Managing inputs:
+  - Add Inputs (POST) — append new fields, existing inputs unaffected
+  - List Inputs (GET) — see current fields with reference strings
+  - Delete Input (DELETE) — remove a field (breaks any action references to it)
+
+Inputs cannot be renamed. To change a name, delete and re-add. This will break
+action references to the old name — reconfigure those actions after.
+
+================================================================================
+3. ACTIONS
+================================================================================
+
+Actions are the steps in your pipeline. Each action processes every row of data
+and produces output fields that downstream actions can reference.
+
+Two identifiers:
+
+  action_id
+    The template identifier. Same across all workflows. Found in the action
+    catalog. Example: enrich_company_linkedin_profile
+
+  action_instance_id
+    The unique instance in your workflow. Auto-generated when you add an action.
+    Suffixed with _1, _2 if the same action is added multiple times.
+    Example: enrich_company_linkedin_profile_1
+
+    This is what you use in variable references:
+    {{enrich_company_linkedin_profile_1.company_name}}
+
+When you add an action to a workflow, the response includes:
+  - The action_instance_id
+  - All output fields with ready-to-use reference strings
+
+Finding the right action:
+  Read the action catalog at https://floqer.com/docs/action-catalog.txt — it lists every action
+  with what it needs (input types) and what it produces (output types).
+
+  For full details on a specific action (configuration guide, best practices,
+  model selection), read https://floqer.com/docs/action-detail/{action_id}.txt
+
+================================================================================
+4. DATA TYPES
+================================================================================
+
+Every input and action output has a type. Types help agents match fields to
+action inputs — for example, an action that needs a URL can search for all
+upstream fields of type "url".
+
+Scalar types:
+
+  string    General text                        "Floqer Inc"
+  url       A URL                               "https://linkedin.com/company/floqer"
+  email     An email address                    "hello@floqer.com"
+  number    A numeric value                     42
+
+Code types:
+
+  js_expression
+    A single JavaScript expression evaluated by Floqer's data formatter. The
+    expression's return value is what gets written into the output column —
+    string, number, array, or object (objects and arrays are serialized).
+
+    Must be a single expression (no top-level statements). For multi-line
+    logic, wrap in an IIFE: (() => { /* logic */ return value; })().
+
+    Variable references inside the expression use Floqer's variable syntax;
+    treat any value coming from a variable as untrusted (may be empty,
+    malformed, or a stringified JSON blob — JSON.parse with a fallback).
+
+    Full reference (patterns, gotchas, examples):
+    https://floqer.com/docs/action-detail/format_data_using_js_expression.txt
+
+Nested types:
+
+  raw_array
+    Unstructured nested array — a flat list whose item shape isn't part
+    of the schema. Pass the whole array as-is to the next action.
+    Cannot be expanded into rows. Typically used for complex nested
+    data like work experiences, education history, or skills lists.
+
+    Example output: experiences (raw_array)
+    Reference: {{action_instance_id.experiences}} — returns the full JSON array
+
+  json
+    Unstructured nested object — a JSON object whose key set isn't part
+    of the schema. Same caller-side handling as `raw_array` (pass as-is
+    or extract specific fields via `format_data_using_js_expression`),
+    but the value is an object rather than an array. Cannot be expanded
+    into rows.
+
+    Example output: company_headquarters (json)
+    Reference: {{action_instance_id.company_headquarters}} — returns
+      the full JSON object
+
+  structured_array
+    Pre-formatted array where each item has defined fields. Can be referenced
+    column-by-column from downstream actions, or expanded into individual rows
+    on a new sheet using `push_data_to_sheet`. In List Rows responses, a
+    structured_array output comes back as a flat array of objects keyed by
+    snake_case column names (e.g. `[{first_name: "...", last_name: "..."}, ...]`).
+
+    Example output: list_of_employees (structured_array)
+      columns: first_name (string), last_name (string), linkedin_url (url),
+      person_title (string), …
+
+    Two ways to use a structured_array:
+
+    1. Per-column reference (3-segment): keep working on the current sheet —
+       reference one column of the array as if it were a regular list.
+       Format: {{<action_instance_id>.<list_name>.<column_name>}}
+       Example: {{get_employees_by_company_using_apollo_1.list_of_employees.first_name}}
+
+    2. Fan out to a new sheet: add a `push_data_to_sheet` action, select the
+       structured_array field, and each item becomes a row on the target sheet
+       with the defined fields as input columns.
+
+================================================================================
+5. VARIABLE REFERENCES
+================================================================================
+
+Variable references connect actions together. They tell an action where to get
+its input data from.
+
+Format: {{step.field_name}}
+
+Input references:
+  {{input.linkedin_url}}        — value from the linkedin_url input column
+  {{input.email}}               — value from the email input column
+
+Action output references:
+  {{enrich_company_linkedin_profile_1.company_name}}    — company_name output
+  {{person_work_email_waterfall_1.work_email}}          — work_email output
+  {{llm_models_1.generated_content}}                    — generated text
+
+Structured-array column references (3-segment):
+  {{get_employees_by_company_using_apollo_1.list_of_employees.first_name}}
+  {{hubspot_lookup_object_1.records.email}}
+    — pull a single column out of an upstream structured_array. Works the
+      same as a scalar reference but resolved per-row when the action below
+      reads the value.
+
+json / object output references (bracket-access required):
+  json- and object-typed action outputs (e.g. lookup's `record`, an
+  http_api_call response) are NOT addressable with dotted nested
+  reference syntax. `{{lookup_1.record.full_name}}` resolves to empty —
+  the substitution layer only reaches top-level keys on the action's
+  output schema, not into nested objects.
+
+  To pluck a field off a json/object output, use the pure-template
+  bracket form inside a `format_data_using_js_expression`:
+
+      {{lookup_1.record}}?.["full_name"]
+      {{http_api_call_1.response_body}}?.["data"]?.["id"]
+
+  The same form works for both snake_case input-column keys and
+  display-name keys with spaces / punctuation. See
+  https://floqer.com/docs/action-detail/format_data_using_js_expression.txt §1
+  (PURE FLOQER-EXPRESSION TEMPLATE) for the full pattern.
+
+Rules:
+  - You can only reference upstream actions (actions that run before the current one)
+  - Referencing a downstream action will fail
+  - References are resolved per-row at runtime — each row gets its own values
+  - You can mix static text and multiple references in a single field:
+    "Research {{input.company_name}} at {{enrich_company_linkedin_profile_1.company_website}}"
+
+Where to find reference strings:
+  - Add Inputs response — each input includes a "reference" field
+  - Add Action response — each output includes a "reference" field
+  - List Inputs / Get Action Config — same reference fields
+
+================================================================================
+6. ACTION CHAIN
+================================================================================
+
+Actions execute in chain order. Each action runs after the previous one
+completes for a given row.
+
+Linear chain:
+  input → action_1 → action_2 → action_3
+
+  Most workflows are linear. Each action appends to the end of the chain.
+  Add actions with POST /workflows/{workflow_id}/sheets/{sheet_id}/actions/add
+  — omit the "after" field to append to the end. Pass an optional `name`
+  to set a custom display name at creation time.
+
+Renaming an action:
+  PATCH /workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}/name
+  Body: {"name": "..."}
+  Single-field PATCH that updates the action's display name without
+  triggering the row-level cache invalidation Configure Action would —
+  useful when you only want to relabel a node.
+
+Re-ordering an action:
+  PATCH /workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}/move
+  Body: {"after": "..."}  -- required
+  Pass `"input"` to move to the start (right after the synthetic input
+  node), or an existing `action_instance_id` to move immediately after
+  that instance. Updates only the chain pointers on the moved action,
+  its old neighbours, and its new neighbours — configured inputs /
+  outputs are untouched. If the new position pushes the action ahead
+  of one of its upstream references (or pushes a downstream consumer
+  ahead of this action), those refs will fail at run time — re-wire
+  via Configure Action.
+
+Saving a note on an action:
+  POST /workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}/notes
+  Body: {"note": "..."}  -- required, non-empty
+  Upsert — one note per action; calling again overwrites it. Notes
+  are surfaced as `note` on Get Action and on each node of Get Action
+  Graph. Configure Action also accepts an optional `note` body field
+  that uses the same upsert path.
+
+Filtering:
+  The `filter` action skips rows that don't meet a set of conditions.                                                                                                                                                               
+  Rows that pass continue to the next action. Rows that fail stop here —                                                                                                                                                            
+  downstream cells stay queued and never run for that row. 
+
+  input → action_1 → filter_1 → action_2
+
+  Only rows matching the filter conditions reach action_2. See
+  https://floqer.com/docs/action-detail/filter.txt for the full body shape (groups,                                                                                                                                                            
+  combinators, operator catalog).  
+
+push_data_to_sheet:
+  The `push_data_to_sheet` action takes a structured_array from the current
+  sheet and expands each item into a row on a target sheet. This is how you
+  handle one-to-many relationships — for example, one company with many
+  employees.
+
+  Sheet 1: company rows → finder action produces list_of_employees
+                          (structured_array)
+  push_data_to_sheet:    expands list_of_employees into individual rows
+  Sheet 2: employee rows → each with first_name, linkedin_url, etc. as inputs
+
+================================================================================
+7. RUNNING A WORKFLOW
+================================================================================
+
+After building (inputs + actions configured), add data and run:
+
+  1. Add rows —
+       POST /workflows/{workflow_id}/sheets/{sheet_id}/rows
+     Body: {"rows": [{...}], "run_after_add"?: "none" | "first_10" | "all"}
+     Each row is a JSON object keyed by input field names — match the
+     literal `name` value from List Inputs exactly (case-sensitive,
+     whitespace-sensitive). It may differ from the reference token's
+     snake_case form (e.g. `name: "Company Name"` but reference
+     `{{input.company_name}}` — the row key is `"Company Name"`):
+     {"rows": [{"linkedin_url": "https://linkedin.com/company/floqer",
+                "email": "hello@floqer.com"}]}
+     Returns {row_ids: [...]}. Use run_after_add="first_10" during build
+     to queue the first 10 newly-added rows for execution in one call.
+
+  2. Run the sheet —
+       POST /workflows/{workflow_id}/sheets/{sheet_id}/run
+     Body: {"row_ids": [...]} to run specific rows, OR
+           {"first_10": true} to run the first 10 rows on the sheet.
+     Execution is asynchronous. To run every row, use
+       POST /workflows/{workflow_id}/sheets/{sheet_id}/run-all (no body).
+     ⚠️ Run-all is a full-credit-cost operation; verify on first_10 first.
+     
+     To re-run just one action against a set of rows (e.g. after
+     Configure Action edits to that action), use Run Action:
+       POST /workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}/run
+     Body: {"row_ids": [...], "run_next_action"?: boolean}
+       row_ids is required — pass [] to queue every row on the sheet.
+       run_next_action: false (default) runs only the targeted action;
+       true continues into the rest of the chain after this action.
+
+  3. Check results —
+       POST /workflows/{workflow_id}/sheets/{sheet_id}/rows/list
+     Body (all optional):
+       {
+         "row_ids"?:        [...],
+         "page_no"?:        1,
+         "page_size"?:      20,
+         "filters"?:        [...],   // input-column value filters
+         "status_filters"?: [...],   // per-action cell-status filters
+         "created_at"?:     { ... }  // row creation time filter
+       }
+     Returns rows with per-cell action status and outputs. Poll until
+     row_status is "complete" or "has_failures".
+
+     `filters` operate on input columns only (`{{input.<column>}}`
+     refs); `status_filters` match per-action cell status with an
+     `is` / `is_not` array; `created_at` takes `{operator, values}`
+     for time-based filtering. row_ids cannot combine with filters
+     / status_filters / created_at (400 on mix). Pagination past the
+     end returns rows: [] with the real total_count — don't expect
+     wrap-around.
+
+     See the per-endpoint reference in /docs/llms-full.txt for the
+     operator vocabulary and value-cardinality rules.
+
+
+
+You can also run during the build process to test a partially configured
+sheet on a few rows before adding more actions.
+
+Configuration options (set at Create Sheet, per sheet):
+  - auto_run — run the sheet automatically when new data arrives
+  - cache_enabled — skip rows with identical inputs (exact match only)
+  - cache_since — earliest date (UTC) from which cached runs are considered
+                  fresh. Default: null (all cached runs are fresh regardless
+                  of age)
+
+================================================================================
+8. GET ACTION FIELD OPTIONS (DYNAMIC DROPDOWNS)
+================================================================================
+
+Some action fields are dynamic dropdowns whose valid values depend on the
+caller's account or on other field selections — e.g. a HubSpot object's
+property list, an Instantly account's campaigns, a Salesforce object's external-ID
+fields, a Google spreadsheet's tabs. The action-detail file calls these out
+explicitly when they exist.
+
+Resolve them by calling Get Action Field Options:
+
+  POST /api/v1/workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}/options/{field_name}
+  Body: { "context": { "<other_field>": "<value>" } }   // optional
+
+Returns a list of `{ value, label }` pairs. Pass the chosen `value` straight
+into the matching field in Configure Action.
+
+Examples:
+  - HubSpot properties keyed by object type:
+    POST .../options/hubspot_object_properties
+    Body: { "context": { "hubspot_object": "contacts" } }
+  - Google Sheet tabs inside a chosen spreadsheet:
+    POST .../options/select_sheet
+    Body: { "context": { "spreadsheets": "<spreadsheet_id>" } }
+  - User's Instantly campaigns (no context required):
+    POST .../options/campaign_id
+    Body: {}
+
+When configuring an action with one or more dynamic dropdowns, always resolve
+the options first — never guess values. The action-detail file lists the
+exact pre-call(s) needed for each action.
+
+Static-enum dropdowns
+---------------------
+
+Some dropdowns are static enums — their valid values are fixed at design time
+and listed inline in the action-detail file as `(static dropdown, …)`. Calling
+`POST .../options/<field_name>` on a static dropdown returns:
+
+  { "error": "Bad Request",
+    "message": "Field '<field_name>' on action '<action_id>' does not have
+                a dynamic-options resolver." }
+
+That's not a failure — the field is telling you to read its values from the
+action-detail file instead of resolving them dynamically. HubSpot's
+`hubspot_object` / `choose_hubspot_object` are the most common examples.
+
+================================================================================
+9. CONDITIONAL EXECUTION (RUN_IF)
+================================================================================
+
+Any action can be gated with a `run_if` condition so it runs for a row only
+when the condition is satisfied. Set via Configure Action's body alongside
+`inputs`; pass `null` to clear; omit to leave existing condition unchanged.
+An empty `{}` is also accepted (200, treated as a no-op — it does NOT clear
+the gate; use `null` for that). Verified 2026-06-08: `{}` is no longer a 400.
+
+Shape — an array of AND/OR condition GROUPS (the same shape the `filter`
+action uses for `path_conditions`):
+
+  run_if: {
+    conditions: [
+      {
+        conditions: [
+          {
+            variable: "{{<reference token>}}",
+            operator: "is" | "is not" | "is empty" | "is not empty"
+                    | "contains" | "does not contain"
+                    | "starts with" | "does not start with"
+                    | "ends with" | "does not end with"
+                    | "greater than" | "less than"
+                    | "greater than or equal to" | "less than or equal to"
+                    | "is between" | "is after" | "is before",
+            values: ["..."],
+            combinator?: "AND" | "OR"    // joins this leaf to the previous one
+          }
+          // ... more leaf conditions in this group
+        ],
+        combinator?: "AND" | "OR"        // joins this group to the previous one
+      }
+      // ... more groups
+    ],
+    continue_workflow_if_run_condition_not_met?: boolean   // default false
+  }
+
+How it evaluates:
+
+  - `conditions` is a list of GROUPS. Inside a group, the leaf `conditions`
+    are combined left-to-right by each leaf's `combinator` (AND / OR). The
+    groups are then combined left-to-right by each group's `combinator`.
+  - The FIRST group's and FIRST leaf's `combinator` is ignored (nothing
+    precedes it). Omitted `combinator` defaults to `AND`.
+  - A single condition is just one group with one leaf:
+
+      run_if: {
+        conditions: [
+          { conditions: [{ variable: "{{input.country}}", operator: "is", values: ["US"] }] }
+        ]
+      }
+
+  - `combinator` and `operator` are different things: `operator` is the
+    COMPARISON (`is`, `greater than`, ...); `combinator` is the AND/OR join
+    BETWEEN conditions.
+
+Three things to know:
+
+  1. `continue_workflow_if_run_condition_not_met` lives INSIDE `run_if`, not
+     at the Configure Action body's top level. The body shape
+     `{inputs?, run_if?, continue_workflow_if_action_fails?, note?}` lists a
+     similarly-named field (`continue_workflow_if_action_fails`) at top level
+     — easy to confuse. If you place `continue_workflow_if_run_condition_not_met`
+     at the body's top level instead of inside `run_if`, the server silently
+     drops it (no error, no warning — the GET readback will show
+     `continue_workflow_if_run_condition_not_met: false` inside `run_if`).
+
+     Verified 2026-05-26: the flag itself is also observably a no-op for
+     chain progression. With the flag absent / false (default), TRUE
+     (inside `run_if`), OR placed at top level and silently dropped, the
+     downstream chain behaves identically — the gated action's own cell
+     marks `condition_not_met` when the gate fails, but downstream actions
+     run regardless. References to the gated action's outputs from
+     downstream resolve to empty string (matching the failed-cell ref
+     behavior described elsewhere). Rows do NOT stick in `running` state
+     — `row_status` settles on `complete` once every reachable cell has
+     run. The flag is currently retained in the API surface for
+     forward-compat but does not change observable per-row behavior.
+
+  2. Legacy flat form. An earlier single-condition shape
+     (`{variable, operator, values}`) is STILL accepted on write for backward
+     compatibility (200 — NOT rejected), but it is no longer the documented
+     format — prefer the nested `conditions` shape above. When you use it,
+     Configure Action auto-normalizes it to the nested form and returns a
+     non-fatal warning in `warnings[]` (`code: "deprecated_format"`) asking
+     you to migrate. Verified 2026-06-08. Either way, Get
+     Action and Get Action Graph ALWAYS return the condition in the nested
+     form, regardless of how it was written (old flat API, new nested API,
+     or the UI). Read code against the nested shape only.
+
+     Note (verified 2026-05-26): the deprecation warning + nested readback
+     ship on staging first and roll out to prod separately. On a prod
+     deployment that hasn't received this change, the legacy flat form
+     writes succeed with no warning and Get Action returns the flat shape
+     back. Don't gate on the warning being present as your signal that
+     you're "on the new form"; trust your write payload instead.
+
+  3. Multi-value `is` / `is not` works as set membership (SQL `IN`).
+     Verified 2026-05-26. A leaf condition `{"variable":
+     "{{input.country}}", "operator": "is", "values": ["US", "UK"]}`
+     evaluates true when the variable equals ANY value in the array,
+     not when it equals the array literally. Same for `is not`
+     (rejects rows matching any value). The same applies inside the
+     `filter` action's `path_conditions`.
+
+Operator support depends on the variable's stored type — derived from the
+sheet's chain, so you don't pass it:
+
+  - Universal (any type):     is, is not, is empty, is not empty
+                               (`is empty` / `is not empty` ignore `values`)
+  - String / email / url:     contains, does not contain, starts with,
+                               does not start with, ends with, does not end with
+                               (case-insensitive)
+  - Number / currency:        greater than, less than, greater/less than or
+                               equal to, is between (pass `[min, max]`)
+  - Date:                     is after, is before, is between (pass `[start, end]`)
+  - Array / structured_array: contains, does not contain
+  - json:                     contains, does not contain
+
+`values` is an array of literals — variable references inside `values` are
+not resolved. Number / date matchers coerce as needed.
+
+Common patterns:
+
+  Lookup-then-create (when no upsert key exists):
+    salesforce_lookup_record  ->
+      salesforce_create_record  (run_if: {{lookup.record_id}} is empty)
+
+  Per-row gating by enrichment result:
+    person_work_email_waterfall  ->
+      salesforce_upsert_record   (run_if: {{waterfall.work_email}} is not empty)
+
+  Geographic filter:
+    enrichment  ->
+      outreach_action            (run_if: {{input.country}} is one of US, CA)
+
+When `run_if` is configured, Get Action / Get Action Graph surface it (in the
+nested `conditions` form) alongside `inputs` and `next` on the action node.
+When absent, the action runs unconditionally (the default).
+
+For the full schema and operator semantics, see Configure Action in the API
+reference (https://floqer.com/docs/reference#configureAction).
+
+================================================================================
+10. DATA SOURCES
+================================================================================
+
+Sources are how data gets INTO Floqer. They sit ALONGSIDE workflows, not
+inside them — a source pulls records from an external system (such as
+HubSpot) into Floqer, and those records become available to your
+workflows for enrichment, scoring, outreach, and the like.
+
+Sources live under their own URL tree, keyed by a source identifier:
+/api/v1/sources/<source_id>/... The same operations apply to every
+source; only the per-source body shape differs (documented in
+source-detail/<source_id>.txt). Available source identifiers:
+
+Supported source types (26 total — listed below; browse them with key body
+fields in https://floqer.com/docs/source-catalog.txt, full per-type spec in
+source-detail/{source_id}.txt):
+
+  CRM
+    import_from_hubspot, import_from_salesforce, import_from_pipedrive,
+    import_from_google_sheets, import_from_snowflake
+
+  First-party
+    import_from_typeform, import_from_stripe,
+    import_from_fireflies, track_website_visitors,
+    track_personal_website_visitors
+
+  Ongoing signals
+    track_linkedin_posts, track_job_postings, track_x_posts,
+    extract_from_website, find_linkedin_post_reactors, search_x_tweets
+
+  List building (one-time)
+    find_companies, find_people, find_companies_by_buying_intent,
+    find_companies_by_tech_stack, find_companies_hiring, find_job_postings,
+    find_people_from_sales_navigator, find_companies_from_sales_navigator,
+    search_local_businesses
+
+Per-source detail: https://floqer.com/docs/source-detail/<source_id>.txt
+
+  import_from_hubspot     HubSpot contacts / companies / deals — pulled
+                          from a saved list or a CRM filter expression.
+  import_from_salesforce  Salesforce records of any object (Contact, Lead,
+                          Account, custom objects) — pulled by object +
+                          optional filter expression.
+  import_from_pipedrive   Pipedrive records by object type and optional
+                          filters. Connection: pipedrive.
+  import_from_google_sheets  Google Sheets rows from a spreadsheet tab.
+                          Connection: googleSheets.
+  import_from_snowflake   Snowflake SQL query results. Connection: snowflake.
+  import_from_typeform    Typeform form responses. Connection: typeform.
+  import_from_stripe      Stripe entities (subscriptions, charges, invoices,
+                          etc.). Connection: stripe.
+  import_from_fireflies   Fireflies meeting transcripts and action items.
+                          Connection: FireFlies.
+  track_website_visitors  B2B website visitor identification via tracking
+                          pixel. Returns pixel_id + pixel_script on create.
+  track_personal_website_visitors  Personal-site visitor identification
+                          via tracking pixel.
+  track_linkedin_posts    Public LinkedIn posts matching a keyword (optionally
+                          by author title / content type). Ongoing source that
+                          re-checks on a schedule. No connection required.
+  track_job_postings      Monitor new job postings matching filters. Ongoing.
+  track_x_posts           X/Twitter tweet monitor. Ongoing.
+  extract_from_website    Scrape a website and extract structured rows by
+                          prompt. One-time.
+  find_linkedin_post_reactors  LinkedIn post reactors for a company page.
+                          One-time.
+  search_x_tweets         One-shot X/Twitter tweet search.
+  find_companies          B2B companies by location, firmographic,
+                          industry, and technographic filters. One-time
+                          list. No connection required.
+  find_people             B2B people by job, location, and company-context
+                          filters. One-time list. No connection required.
+  find_companies_by_buying_intent  Companies by buying-intent topics.
+                          One-time list.
+  find_companies_by_tech_stack  Companies using a specific technology.
+                          One-time list.
+  find_companies_hiring   Companies actively hiring. One-time list.
+  find_job_postings       Job postings matching company + job filters.
+                          One-time list.
+  find_people_from_sales_navigator
+                          People from LinkedIn Sales Navigator filters or
+                          search URL. One-time list. No connection required.
+  find_companies_from_sales_navigator
+                          Companies from LinkedIn Sales Navigator filters,
+                          UI payloads, or search URL. One-time list. No
+                          connection required.
+  search_local_businesses Local business search around a map location.
+                          One-time list.
+
+Operations:
+
+  List    — GET /api/v1/sources                               (sources:read)
+    Lists the sources you've created, newest first. Each entry carries
+    `source_instance_id` (the instance UUID — pass to Sync, Get Data, and
+    Pause/Resume), `source_id` (the source-type slug, e.g. import_from_hubspot
+    — pass to Preview / Create / Options), `name`, `status`, `lead_count`,
+    `created_at`, and `expiration_date`. Only source types this API supports
+    are listed. `status` is one of: active (live, re-importing), completed
+    (one-time import, won't refresh), paused, paused_out_of_credits, expired,
+    deleted.
+
+  Preview — POST /api/v1/sources/<source_id>/preview          (sources:read)
+    Returns up to 100 records that WOULD be imported for the given body,
+    without creating anything. Use this to validate filters / list
+    selections before committing. (<source_id> = source type, e.g.
+    import_from_hubspot.)
+
+  Create  — POST /api/v1/sources/<source_id>                  (sources:write)
+    Creates the source, imports matching records immediately (when
+    `pull_existing`), and — for an ongoing source — keeps re-importing on
+    a schedule. Returns `source_instance_id` (the new source's UUID).
+
+  Sync    — POST /api/v1/sources/<source_instance_id>/sync    (sources:write)
+    Connects a CREATED source to a workflow, so its records flow into
+    that workflow. Here <source_instance_id> is the UUID returned by Create.
+    Body: { workflow_id, field_mapping, push_existing?, run? }.
+      - `field_mapping` maps workflow inputs to source fields, using public
+        input references as keys:
+          { "input.email": "email", "input.first_name": "firstname" }
+        (each `input.<field>` key is resolved to that workflow input;
+        unknown inputs → 400.)
+      - `push_existing` (default true) backfills the workflow with the
+        source's current rows.
+      - `run` (default "all") controls whether backfilled rows execute
+        the workflow: "all" runs every row, "first_10" runs the first 10
+        and just loads the rest, "none" loads rows without running.
+    Syncing a source that's already connected to the same workflow
+    returns 409 — don't retry-sync to change the mapping (that would
+    duplicate the connection); the sync is rejected so the existing
+    connection + backfill aren't doubled.
+
+    Building `field_mapping` (two lookups):
+      1. Find the destination workflow_id — `GET /api/v1/workflows`
+         (List Workflows) returns every workflow with its `workflow_id`.
+      2. List that workflow's inputs —
+         `GET /api/v1/workflows/<workflow_id>/sheets/<workflow_id>/inputs`
+         (List Inputs; for the main sheet, sheet_id == workflow_id).
+         Each input carries a `reference` like `{{input.email}}`.
+      3. For each input you want to fill, add an entry to `field_mapping`:
+         the KEY is that input reference WITHOUT the braces (`input.email`),
+         the VALUE is the source field to pull (use Preview rows or
+         §11's `hubspot_properties` to see the available source fields):
+           { "input.email": "email", "input.first_name": "firstname" }
+         The VALUE is the row's top-level key exactly as it appears in
+         Preview (e.g. `email`, `Name`, `website`) — never a nested
+         path like `Name.value`. Cells that render as `{label, value}` are
+         unwrapped automatically.
+         Keys are CASE-SENSITIVE — copy the reference verbatim (lowercase
+         snake_case, e.g. `input.first_name`); `Input.Email` /
+         `input.firstName` do not resolve and return 400.
+
+  Get Data — GET /api/v1/sources/<source_instance_id>/data     (sources:read)
+    Returns paginated rows imported into a created source. Here
+    <source_instance_id> is the UUID returned by Create.
+    Query params: `page_no` (1-indexed, default 1), `page_size` (default 20,
+    max 200). Response: { rows, total_count, page_no, page_size }.
+    Row field names match the Preview response for that source type.
+    Use this to inspect or poll a source after Create while import runs,
+    or to page through the full dataset before Sync. When
+    `page_no * page_size > total_count`, `rows` is empty (end of pagination).
+    Same org-ownership rules as Sync (404 when not found or not yours).
+    No connection required for list-building or LinkedIn sources.
+
+  Pause / Resume — PATCH /api/v1/sources/<source_instance_id>/status   (sources:write)
+    Pauses or resumes a CREATED source. Here <source_instance_id> is the UUID
+    returned by Create. Body: {status: "active" | "paused"}.
+    `paused` stops recurring runs (schedule, webhooks where applicable);
+    `active` resumes them.
+
+  Get Source Field Options — see §11 below.                   (sources:read)
+
+How records are SELECTED is source-specific (see source-detail for the
+exact body). For example:
+
+  import_from_hubspot uses an `import_mode`:
+    "from_list"       — pull members of one or more HubSpot lists (list
+                        membership is the only criterion, no field filters).
+    "native_filters"  — pull records matching a HubSpot CRM v3 Search
+                        filter expression (operator-based, type-dependent).
+
+  import_from_salesforce picks one `object` (Contact, Lead, …) plus an
+    optional `filters` expression compiled into a SOQL query — no
+    import_mode.
+
+The lifecycle fields below (`pull_mode`, `schedule`, `pull_existing`,
+`max_count`, `properties_metadata`) are common across sources.
+
+`pull_mode` (create only) controls whether the source is one-time or
+ongoing:
+
+  pull_mode: "static"
+    One-time import: imports once, then stops. `max_count` caps size.
+
+  pull_mode: "active"
+    Ongoing source: imports initially AND re-imports on the cadence in
+    `schedule` (a cron string), until `expiration_date`. `max_count` is
+    ignored (an active source stays in sync indefinitely).
+
+`pull_existing` (default true) controls whether matching records are
+imported immediately on create. Set false to create an active source
+that only picks up records going forward, on its schedule.
+
+`properties_metadata` (optional) is the field metadata for the fields in
+`properties` — `{name, label}` per field, available from the source's
+dynamic-options call. Every returned cell is a `{label, value}` pair; with
+metadata the `label` is the human label, without it the label falls back to
+the field's key. Field values are returned either way — metadata only sets
+the labels.
+
+Connection check: CRM sources (HubSpot, Salesforce) verify the caller
+has an active connection to that integration before preview, create, or
+options. Missing connection → 424 ("User is not connected to
+'<integration>'."). List-building and LinkedIn sources do not require a
+connection.
+
+Credits are consumed when the source is created. If credit consumption
+fails (insufficient balance), the source is still created but its import
+can't start; the API returns 402 so the caller can top up and retry.
+
+For the per-source body shape, filter operator catalogue, and full
+configuration walkthrough, see
+  https://floqer.com/docs/source-detail/<source_id>.txt
+
+================================================================================
+11. GET SOURCE FIELD OPTIONS (DYNAMIC DROPDOWNS FOR SOURCES)
+================================================================================
+
+Same idea as Get Action Field Options (§8), but for source payloads.
+Use this to discover the values you need to put in a source's
+preview / create body — HubSpot list IDs, HubSpot property names per
+object type, Salesforce object names, Salesforce field names, etc.
+
+  POST /api/v1/sources/<source_id>/options/<field_name>
+  Body: { "context"?: { "<other_field>": "<value>" } }
+
+Returns `{ value, label, extras? }[]`. Pass the chosen `value` straight
+into the matching field in the source's preview / create body. Error
+codes: 400 (no such field for this source, or missing required context),
+424 (integration not connected), 502 (integration call failed).
+
+For `import_from_hubspot` the two field names that matter:
+
+  hubspot_lists       Context: none.
+                      Returns the user's HubSpot list catalog.
+                      Use `.value`s in the source body's `lists[]`.
+
+  hubspot_properties  Context: { "object_type": "contacts" | "companies" | "deals" }.
+                      Returns the property catalog for the chosen
+                      object type. Use `.value`s in `properties[]`; pass
+                      the full array as `properties_metadata` to get
+                      labeled rows; use `.extras.type` to pick the
+                      right filter operator (see source-detail §5).
+
+For `import_from_salesforce` the two field names that matter:
+
+  salesforce_objects    Context: none.
+                        Returns the object catalog (Contact, Lead, Account,
+                        custom objects). Use a `.value` as the source
+                        body's `object`.
+
+  salesforce_properties Context: { "salesforce_object": "Contact" } — REQUIRED.
+                        Returns the field catalog for that object. Use
+                        `.value`s in `properties[]`; pass the `.extras`
+                        entries as `properties_metadata` to get labeled
+                        rows; use `.extras.type` to pick the right filter
+                        `variable_type` (see source-detail).
+
+For `find_people_from_sales_navigator` and
+`find_companies_from_sales_navigator` the autocomplete field names are:
+
+  location               Context: { "search": "<text>" } — required for
+                         results; omitting search returns empty options.
+                         People source only. Resolves region values for Sales
+                         Navigator location filters. Pipe `.value` into filter
+                         payloads.
+
+  company_headquarters   Context: { "search": "<text>" } — required for
+                         results; omitting search returns empty options.
+                         People and companies sources.
+                         Resolves HQ region values. Pipe `.value` into filter
+                         payloads.
+
+For `import_from_pipedrive`:
+
+  properties             Context: none — set `object_type` in the create body
+                         first. Returns Pipedrive field names for that object.
+
+For `import_from_google_sheets`:
+
+  spreadsheet_id         Context: none. Returns spreadsheets in the account.
+  sheet_name             Context: { "spreadsheet_id": "<id>" } — REQUIRED.
+
+For `import_from_snowflake`:
+
+  warehouse, database, role  Context: none.
+  schema                 Context: { "database": "<name>" } — REQUIRED.
+  table                  Context: { "database", "schema" } — REQUIRED.
+
+For `import_from_typeform`:
+
+  form_id                Context: none.
+  form_fields            Context: { "form_id": "<id>" } — REQUIRED.
+
+For `find_job_postings`:
+
+  company_technology_slug, job_technology_slug, industry_id
+                         Context varies — see source-detail.
+
+When configuring a source with filters, always resolve the property /
+field catalog first — you need each field's `extras.type` to pick a valid
+filter operator. An operator unsupported for the field's type is rejected
+by the provider (surfaced as a 502 on preview, or a failed import on
+create).
+
+================================================================================
+12. CALLER IDENTITY (GET USER)
+================================================================================
+
+Before building or running workflows, call Get User to confirm who the API
+key belongs to and which organization it operates in. No scope required —
+any valid API key may call this endpoint.
+
+  Get User — GET /api/v1/user
+
+Returns the caller's identity and a snapshot of their organization's member
+roster in one response:
+
+  email, first_name, last_name   — the API-key owner (Floqer username)
+  role                           — "admin" (org lead) or "member"
+  org_id                         — organization UUID
+  org_members: { count, emails } — member roster; emails are sorted
+                                   alphabetically. count equals emails.length
+                                   (may include duplicate invites).
+
+For accessible workflow metadata, use List Workflows
+(GET /api/v1/workflows). Get User deliberately omits workflow lists so
+narrow-scoped API keys can still bootstrap identity.
+
+Org knowledge file
+------------------
+
+Alongside identity, an organization has a single free-form knowledge file —
+a text/markdown blob describing the org (who they are, what workflows they
+run, their goals). It's context an agent reads before acting. One file per
+organization; every member of the org shares it.
+
+  Get Org Knowledge — GET /api/v1/user/knowledge
+    Returns { content, exists, updated_at }. When no file has been written
+    yet, returns exists:false / content:null with a 200 (NOT a 404).
+
+  Set Org Knowledge — PUT /api/v1/user/knowledge
+    Body { content }. Idempotent full replacement — content becomes the
+    entire file. Max 256 KB. Send an empty string to clear it.
+
+No scope required for either — a key reads and writes only its own org's file.
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-08.
+Full interactive reference: https://floqer.com/docs/reference

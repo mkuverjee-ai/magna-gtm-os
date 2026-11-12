@@ -1,0 +1,745 @@
+ACTION_ID: llm_web_agents
+NAME: Web Agent
+CATEGORY: research
+CREDITS: 0.2-5 varies by model
+
+Run a prompt-driven research agent against the live web. Pick a
+model, give it a "mission" (a free-text prompt describing what to
+research), and define an output format. The agent navigates the
+web, reasons over what it finds, and returns a structured result
+plus citations to the sources it used.
+
+Useful for any per-row research task where the answer isn't in
+your enrichment providers' fixed schema — e.g. "find the most
+senior person in [function] at this company", "summarise the
+prospect's last earnings call", "list customer logos from this
+homepage", "check whether this company recently announced
+[event]". One web agent runs per row, one model per call (you can
+only select a single model per action instance).
+
+INDEX:
+  1. Inputs
+  2. Outputs
+  3. How to configure
+  4. Key notes
+  5. Where it fits in a workflow
+  6. When to use
+  7. When not to use
+  8. Models reference
+
+================================================================================
+1. INPUTS
+================================================================================
+
+select_a_model (type: string, required) — Select a model
+  Model ID for the agent to use. Exactly ONE model per action
+  instance — there is no fallback or chaining within this field.
+  See section 8 (MODELS REFERENCE) for the full list of allowed
+  ids, their handlers, output capabilities, and per-call credit
+  costs.
+
+mission (type: string, required) — Mission
+  Free-text prompt describing what the agent should research /
+  return. Reference upstream variables with the standard
+  {{...}} variable syntax (e.g.
+  "find the head of revenue at {{input.company_name}}").
+
+output_format (type: raw_array, required) — Output Format
+  Structured-output schema definition. Tells the agent what
+  shape to return its answer in (single field vs nested object,
+  per-field types, etc.) — populated as a JSON schema-like blob.
+  Required for all supported models. Keep the schema as narrow
+  as the use case allows: every extra field adds reasoning load
+  and cost.
+
+  Accepted values:
+    1. JSON schema object — the canonical form, shown in section 3:
+         { "name": { "type": "string" }, "title": { "type": "string" } }
+       Each top-level key becomes a referenceable output field.
+    2. JSON schema serialized as a string — accepted for
+       convenience, e.g. '{"name":"string","title":"string"}'.
+       Server normalizes it to "json" mode and derives outputs
+       from the schema declared in your mission's `# Output Format`
+       block (so include that block in the mission too).
+    3. Literal mode marker "json" or "fields" — opts into
+       deriving the output schema from the mission's
+       `# Output Format` section instead of a separate schema
+       blob. Use this when you'd rather keep the schema
+       co-located with the prompt; declare the JSON shape inside
+       the mission, e.g.
+
+         # Output Format
+         Return valid JSON with each field as a string.
+         { "name": "string", "title": "string" }
+
+       and the action will surface `name` and `title` as
+       referenceable outputs alongside `web_citations`.
+
+================================================================================
+2. OUTPUTS
+================================================================================
+
+result (type: string) — Result
+  The agent's answer to the mission, shaped per the Output Format
+  schema. Populated for every supported model.
+
+reasoning (type: string) — Reasoning
+  The agent's intermediate reasoning (when the model group
+  surfaces it — e.g. parallel-* and Perplexity reasoning models).
+  May be empty for fast / lightweight models.
+
+web_citations (type: raw_array) — Web Citations
+  Array of citation URLs the agent referenced when producing the
+  result. Populated for every supported model.
+
+The caller-defined fields from the `output_format` schema also
+surface as referenceable outputs once the action has run; their
+exact shape depends on what the agent fills in. `result` and
+`web_citations` are populated for every supported model.
+
+================================================================================
+3. HOW TO CONFIGURE
+================================================================================
+
+Configure Action body:
+
+{
+  "inputs": {
+    "select_a_model": "floqer-nova",
+    "mission": "Find the head of revenue at {{input.company_name}}. Return the person's name, current title, and LinkedIn URL.",
+    "output_format": {
+      "name":         { "type": "string" },
+      "title":        { "type": "string" },
+      "linkedin_url": { "type": "string" }
+    }
+  }
+}
+
+Field-by-field:
+  - select_a_model   Model id from section 8. Exactly ONE model per
+                     action instance.
+  - mission          Free-text instruction for the agent.
+                     `{{ref}}` tokens resolve per row.
+  - output_format    JSON-schema-like blob describing the shape of the
+                     answer. Each top-level key becomes a referenceable
+                     output field on this action — Configure Action
+                     persists the schema to `responseConfiguration`
+                     so Add Action / Get Action Outputs surface the
+                     user-defined fields under `outputs[]` and
+                     downstream actions can wire
+                     `{{<this_action>.<field>}}` references.
+                     `web_citations` is always preserved alongside
+                     the user-defined fields (you don't need to
+                     re-declare it). See section 8 for handler-specific
+                     schema styles (description-rich vs flat).
+
+================================================================================
+4. KEY NOTES
+================================================================================
+
+- One model per action instance. If you need to try several
+  models for the same mission (e.g. compare cost vs quality), add
+  multiple llm_web_agents action instances rather than trying to
+  pick more than one in a single field — the model selector is
+  single-value.
+
+- Mission writing tips: be specific about the question AND the
+  shape of the answer. The Output Format schema is what the agent
+  reads as "what to return" — keeping it narrow (one to three
+  fields) gives faster, cheaper, more reliable results than a
+  loose mission with no shape constraint.
+
+- See section 8 (MODELS REFERENCE) for the full list of supported
+  models, their `output_format` schema styles (description-rich vs
+  flat), raw_array support, and per-call credit costs. CREDITS at
+  the top of this file is a range across that set.
+
+- `output_format` updates `responseConfiguration` at Configure Action
+  time. After PATCHing it, re-fetch with Get Action / Get Action
+  Outputs to see the new user-defined fields under `outputs[]` with
+  their `reference` tokens before wiring downstream actions.
+  Re-PATCHing with the same field names preserves their `responseId`s,
+  so downstream `{{ref}}` tokens stay valid as long as you don't
+  rename a field.
+  Readback caveat: the `output_format` field in the Get Action
+  response is a type discriminator string (`"json"`), not the schema
+  object you sent. The persisted schema is not echoed back —
+  inspect `outputs[]` to see the expanded fields.
+
+- RENAMING OUTPUT FIELDS NEEDS AN `output_format` RE-PATCH. The
+  referenceable outputs are persisted from `output_format` at
+  Configure time, NOT re-derived from the mission prose. Editing only
+  the mission's `# Output Format` section leaves the discovered schema
+  STALE — downstream `{{<this_action>.<newfield>}}` references resolve
+  `unresolved_reference`. To rename: re-PATCH `output_format` as an
+  explicit JSON object listing every field (the canonical form from
+  section 3), then call Get Action Outputs to confirm the new names in
+  `outputs[]` before re-running. Re-sending the bare `"fields"` (or
+  `"json"`) literal marker does NOT re-derive the schema. Verified
+  2026-06-08.
+
+- `web_citations` is preserved across `output_format` re-configures —
+  it stays in `outputs[]` alongside whatever fields you define. You
+  don't need to include it in the schema. (Other system entries like
+  `reasoning`, `steps_taken`, `confidence`, `model_cost` are NOT
+  preserved by default — re-add them via the schema if you need them
+  surfaced as referenceable outputs.)
+
+- Don't ask the model to self-report aggregations, counts, or scores.
+  Web agents — particularly the Perplexity Sonar handler (the
+  legacy Floqer Deep id, sonar-agent-deep), a strong web researcher
+  but a relatively weaker reasoner — can produce per-field signal
+  outputs reliably but
+  drift between those per-field answers and any "summary" field in
+  the same response. Common failure mode: the model emits
+  `funding_status: CONFIRMED`, `tech_stack_status: CONFIRMED`, ...
+  across 6 fields, then self-reports `signals_confirmed_count: 5`
+  in the same JSON, omitting one. Or it emits a `score` field that
+  doesn't reconcile with its own per-signal answers.
+  Pattern that works: have the agent output only the raw per-field
+  evidence (per-signal `status` + `evidence`, per-row research
+  notes). Compute counts, sums, weighted scores, tier classifications,
+  and any other aggregation downstream in a
+  `format_data_using_js_expression` action that reads the per-field
+  outputs. The model returns raw evidence; the formatter does the
+  math. Same heuristic as research-vs-writing: don't blend roles.
+
+- To refresh existing rows under the new schema without re-running
+  the whole chain, call Run Action
+  (`POST /actions/{action_instance_id}/run`) — pass rows_ids to run particular rows, 
+  or an empty body to re-run every row through this action only, 
+  or `run_next_action: true` to also re-run anything downstream.
+
+================================================================================
+5. WHERE IT FITS IN A WORKFLOW
+================================================================================
+
+Pattern (research -> opener): account list -> llm_web_agents
+(research the account / role / news) -> llm_models (write opener) ->
+outreach. Web agent does research only, never writing; llm_models
+does writing only, never research. Keep them as separate actions.
+
+Pattern (people finder for under-indexed segments): use as the
+employee finder itself when dedicated finders (Apollo, Floqer
+Native) have thin coverage of the target population. Run a mission
+that applies size-tiered title logic per row and returns a
+raw_array of people; pipe through raw_to_structured_array ->
+push_data_to_sheet to fan out into one row per person on a new
+sheet.
+
+  input (target company list — domain or name per row)
+    -> llm_web_agents (Floqer Nova or Parallel Core, raw_array
+       output, mission with role + seniority logic per row)
+    -> raw_to_structured_array
+    -> push_data_to_sheet
+    -> per-person enrichment (phone, email, etc.)
+    -> outreach.
+
+Prefer this path over Apollo / Floqer Native when the target ICP is
+small, fragmented, or otherwise under-indexed in B2B databases —
+independent shops, family businesses, government contractors,
+regional service providers, anything below ~50 headcount in
+non-tech verticals. Reach for the dedicated finders when targeting
+tech companies, mid-market and up, or any segment with dense
+LinkedIn coverage. See section 8 for prompt patterns and model
+selection.
+
+================================================================================
+6. WHEN TO USE
+================================================================================
+
+Use llm_web_agents when you need a multi-model web research
+agent with citations.
+
+Also use it as the people finder itself for ICPs that Apollo /
+Floqer Native don't cover well — small, fragmented, non-tech, or
+sub-50-headcount segments. Use the raw_array fan-out pattern
+described in section 5 / 8.
+
+================================================================================
+7. WHEN NOT TO USE
+================================================================================
+
+Need general LLM completion (no web search)
+  -> llm_models (use a Perplexity Sonar model for web-grounded
+     answers without the agentic loop)
+     (https://floqer.com/docs/action-detail/llm_models.txt)
+
+Need a specific page scraped
+  -> scrape_web_page_using_firecrawl
+     (https://floqer.com/docs/action-detail/scrape_web_page_using_firecrawl.txt)
+
+Need step-by-step browser navigation (clicks, forms, multi-page)
+  -> ai_web_navigator
+     (https://floqer.com/docs/action-detail/ai_web_navigator.txt)
+
+================================================================================
+8. MODELS REFERENCE
+================================================================================
+
+Pass the model id (left column) as the value of the
+`select_a_model` field.
+
+
+Output Format styles (handler-dependent)
+----------------------------------------
+
+Parallel handler (parallel-base, parallel-core) — accepts a
+description-rich JSON schema. Each output field is an object with
+a "type" and a "description" the agent uses to guide extraction:
+
+  {
+    "linkedin_url": {
+      "type": "string",
+      "description": "The exact LinkedIn company page URL corresponding to the given company identifier."
+    },
+    "domain": {
+      "type": "string",
+      "description": "The primary website domain of the company corresponding to the given identifier."
+    },
+    "company_name": {
+      "type": "string",
+      "description": "The official name of the company corresponding to the given identifier."
+    }
+  }
+
+  Both parallel-base and parallel-core support per-field
+  descriptions. Tighter descriptions = better answers — Parallel
+  uses them as hints for what to look for and how to validate
+  the extracted value.
+
+Floqer Native, Perplexity Sonar, OpenAI, and Linkup handlers —
+accept a simpler flat schema where each field is just a type
+label, no descriptions:
+
+  {
+    "linkedin_url": "string",
+    "domain":       "string",
+    "company_name": "string"
+  }
+
+  Per-field guidance has to live in the Mission text instead of
+  the schema.
+
+
+Web Citations
+-------------
+
+`web_citations` is returned automatically by every supported
+model — you don't need to declare it in your `output_format`.
+
+
+Reasoning field convention
+--------------------------
+
+For any model, it's often useful to explicitly add a "reasoning"
+field in BOTH the Mission prompt ("explain how you arrived at
+the answer in a `reasoning` field") and the `output_format`
+schema. This puts the agent's chain-of-thought on the row as a
+regular column — useful for debugging and auditability,
+especially for the models that don't surface `reasoning`
+natively.
+
+
+raw_array output (for row fan-out)
+----------------------------------
+
+Perplexity Sonar, OpenAI, and Parallel handlers can be
+configured to return a single field whose value is a raw array,
+by defining the Output Format as:
+
+  {
+    "Result": "string"
+  }
+
+("Result" is just a name — pick whatever makes sense.) The agent
+fills the field with a serialized array of records. Pipe that
+field into raw_to_structured_array to build a structured_array,
+then into push_data_to_sheet to expand into per-record rows on
+a new sheet. Linkup does not support this pattern.
+
+Anchor the output shape in the mission. The agent's
+serialization for raw_array is non-deterministic — on the same
+model and same task, `result` may come back as a flat
+stringified array on one row (`'[{...},{...}]'`) and as a
+stringified wrapper object on the next
+(`'{"Result":"[...]"}'`). Without anchoring, downstream
+raw_to_structured_array will fail intermittently with
+"Missing input data" on the wrapped-form rows. Constrain the
+shape in the mission text — the Output Format reserves the
+field, the mission constrains what the agent puts in it. Add
+a clause like:
+
+  Return ONLY a JSON array of objects with these keys:
+    <k1>, <k2>, ...
+  Do NOT wrap it in another object.
+  Do NOT include a "Result" key around it.
+  Do NOT add markdown fences or commentary.
+  Example: [{"<k1>":"...","<k2>":"..."}]
+  If no matches: []
+
+People-search via raw_array (employee-finder-style fan-out):
+Floqer Nova (floqer-nova) and Parallel Core (parallel-core)
+are the recommended models for this. Floqer Nova is fully
+capable of raw_array fan-out. Run a mission like "find
+every person at {{input.company_name}} with a title in
+[VP Sales, Director of Sales, Sales Manager]" with the
+single-field Output Format above, and the agent returns a
+serialized array of people. Pipe through raw_to_structured_array
+→ push_data_to_sheet, and you get a new sheet with one row per
+person — same downstream shape as a dedicated employee finder
+(get_employees_by_company_using_floqer_native /
+_using_apollo / _using_sales_navigator), but with a free-text
+natural-language filter rather than a fixed-schema query. Useful
+when the title list is unusual, the search needs
+conditional / fallback logic ("VP first, fall back to Director
+if no VP"), or you want to combine company-side and people-side
+lookups in a single agent mission.
+
+Other example missions for raw_array output: "find every named
+customer logo on this homepage", "list all open job titles at
+this company", "list all integrations on this product's docs
+page".
+
+
+Model glossary
+--------------
+
+  Floqer Nova (floqer-nova)             — default (light + heavy)
+    The capable, go-to Floqer web-agent model across both light and
+    heavy tasks: simple lookups, format normalization, single-fact
+    retrieval AND multi-step research, disambiguation, qualification,
+    structured extraction, and raw_array people-search outputs for
+    row fan-out. Default when no specific model is required.
+
+  Floqer Deep (sonar-agent-deep)        — LEGACY (deprecated; use Floqer Nova)
+    Deprecated. Retained here so you recognize it in existing
+    configs, but it is no longer the recommended Floqer web-agent
+    model. Floqer Nova (floqer-nova) is the replacement and covers
+    everything Floqer Deep was previously used for, including
+    raw_array people-search fan-out. Don't pick it for new work.
+
+  Parallel Base 1.1 (parallel-base)     — lightweight tier
+    Targeted single-page or single-fact pulls, basic enrichment.
+
+  Parallel Core (parallel-core)         — heavy tier
+    Complex enrichment, people discovery, structured scoring.
+    Capable of returning raw_array people-search outputs for row
+    fan-out.
+
+  GPT-5 nano (gpt-5-nano)               — lightweight tier
+    Fast extraction, name/website normalization, simple
+    disambiguation.
+
+  GPT-5.2 (gpt-5.2)                     — heavy tier
+    Complex research, qualification, signal detection, content
+    generation.
+
+  linkup-standard                       — lightweight tier
+    Simple lookups; acceptable alternate to GPT-5 nano but not
+    preferred over it.
+
+
+Mental model: classifying a task before selecting a model
+---------------------------------------------------------
+
+Every web-agent task can be decomposed into one or more of three
+jobs. Identify which jobs the task requires, then select the
+model tier accordingly.
+
+  Job 1 — Find: retrieve a specific fact, person, URL, or
+    document from the web.
+      Single-fact retrieval with a clear source: lightweight tier.
+      Multi-source aggregation or thin-data retrieval: heavy tier.
+
+  Job 2 — Verify: confirm that retrieved data refers to the
+    correct entity and is current.
+      Single-axis verification (e.g. does this domain belong to
+      this company): lightweight tier.
+      Multi-axis disambiguation (e.g. parent vs. subsidiary,
+      same-name across regions): heavy tier.
+
+  Job 3 — Judge: assess whether an entity meets defined criteria
+    and how strongly.
+      Boolean or simple-tier classification with explicit rules:
+      lightweight tier.
+      Rubric scoring, qualification, or judgment requiring
+      synthesis across signals: heavy tier.
+
+Tier selection rule: if a task involves only one job at the
+lightweight level, use a lightweight-tier model. If a task
+combines two or more jobs, OR if any single job operates at the
+heavy level, use a heavy-tier model. Tasks that combine all
+three jobs (e.g. "find the right CFO at this exact company and
+assess if they're a champion") always use a heavy-tier model and
+concentrate the highest engineering effort, because each
+sub-step requires its own disambiguation and confidence handling.
+
+Default selection: Floqer Nova is THE default for web-agent
+tasks — it handles both light and heavy work, so when no specific
+model is mandated, default to Floqer Nova. If you want to override
+upward to a non-Floqer heavy-tier alternate (e.g. to compare cost
+vs. quality on multi-step reasoning, structured scoring, or
+cross-source synthesis), the heavy-tier alternates are Parallel
+Core (parallel-core) and GPT-5.2 (gpt-5.2) — NOT Floqer Deep,
+which is legacy/deprecated.
+
+
+Task → model selection
+----------------------
+
+How to read: each task lists a primary model (default) and
+acceptable alternates. Default to the primary unless cost,
+latency, or context-window pressure justifies switching. A model
+not listed for a task is not necessarily incorrect, but is not
+recommended.
+
+  Company enrichment & validation
+
+    Find or correct missing/wrong company website
+      Primary:    GPT-5 nano
+      Alternates: linkup-standard
+
+    Validate firmographics (HQ, offices, founded year,
+    ownership status)
+      Primary:    Parallel Base 1.1
+      Alternates: GPT-5.2
+
+    Disambiguate companies sharing names (cross-state, parent
+    vs. subsidiary)
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1
+
+    Resolve legal entity to operating brand
+      Primary:    Parallel Core
+      Alternates: GPT-5.2
+
+    Find logos, domain, email-domain pattern, social handles
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1
+
+  Financial & size signals
+
+    Annual revenue (reported or estimated), USD-converted
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Headcount estimates with provenance
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Funding history (total raised, last round, investors)
+      Primary:    Parallel Base 1.1
+      Alternates: GPT-5 nano, linkup-standard
+
+    Profitability indicators, growth rate, valuation
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Public-filing pulls (10-K, 10-Q, SEDAR, Companies House)
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1
+
+  Vertical-specific counts
+
+    Attorney count at law firms (with team-page URL)
+      Primary:    GPT-5 nano
+      Alternates: GPT-5.2, linkup-standard
+
+    Provider count (clinics), classroom count (schools),
+    location count (chains)
+      Primary:    Parallel Core
+      Alternates: —
+
+    Practice areas, service lines, product lines
+      Primary:    Floqer Nova
+      Alternates: —
+
+    AUM (asset managers), GMV (marketplaces), listings count
+    (real estate)
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+  People discovery
+
+    Find a specific person's LinkedIn URL from name + company
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1, Parallel Core
+
+    Find founder/CEO LinkedIn + short founder journey narrative
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1
+
+    Find all individuals at a company matching a title list
+    (raw_array fan-out — see raw_array section above)
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Find decision-makers in a specific function
+    (raw_array fan-out — see raw_array section above)
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Find new hires in a target role
+      Primary:    Parallel Core
+      Alternates: —
+
+  ICP & partnership qualification
+
+    Score company against an ICP rubric with named tiers
+      Primary:    Floqer Nova
+      Alternates: Parallel Core, GPT-5.2
+
+    Classify into one of N verticals or sub-verticals
+      Primary:    Floqer Nova
+      Alternates: Heavy-tier model if classification logic is
+                   complex
+
+    Assess partnership fit (B2B2B/B2B2C) vs. direct-customer fit
+      Primary:    Floqer Nova
+      Alternates: —
+
+    Score individual contacts against persona rubrics
+      Primary:    Floqer Nova
+      Alternates: —
+
+    Flag hard disqualifiers (geography, business model, size)
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1, GPT-5 nano
+
+  Buying & intent signals
+
+    Detect funding rounds, M&A, leadership changes
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1, GPT-5.2
+
+    Detect hiring spikes or specific role openings
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2, Parallel Base 1.1
+
+    Detect product launches, feature announcements, geo
+    expansion
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1, GPT-5.2
+
+    Detect compliance/regulatory exposure (DAC7, 1099, 1042,
+    etc.)
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2, Parallel Core
+
+    Pull recent news, press releases, podcast/conference
+    appearances
+      Primary:    Floqer Nova
+      Alternates: —
+
+  Tech stack & competitive context
+
+    Identify tools in use (public detection only)
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2
+
+    Identify integrations, ISV programs, app-store memberships
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2
+
+    Find direct competitors (2-5), verified operating
+      Primary:    Floqer Nova
+      Alternates: —
+
+    Pull competitive positioning from company's own site
+      Primary:    Floqer Nova
+      Alternates: —
+
+  Compliance & regulatory
+
+    Verify licensing/registration (Bar listings, regulator
+    registries)
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2, Parallel Core
+
+    Find audit/compliance certifications (SOC 2, ISO, PCI)
+      Primary:    Floqer Nova
+      Alternates: —
+
+    Sanctions/PEP screening from public sources
+      Primary:    Floqer Nova
+      Alternates: Parallel Base 1.1, GPT-5 nano, linkup-standard
+
+  Content for outreach
+
+    Generate signal-grounded talking points and outreach angles
+      Primary:    Floqer Nova
+      Alternates: GPT-5.2, Parallel Core
+
+    Pull recent quote, podcast moment, or LinkedIn post for
+    hooks
+      Primary:    Floqer Nova
+      Alternates: Parallel Core
+
+    Summarize prospect's recent product launch or announcement
+      Primary:    Floqer Nova
+      Alternates: —
+
+  Document/source extraction
+
+    Pull specific data from a known URL
+      Primary:    Parallel Base 1.1
+      Alternates: —
+
+    Find URL of a specific page type ("Our Team", "Pricing",
+    etc.)
+      Primary:    Floqer Nova
+      Alternates: Parallel Core, GPT-5.2
+
+    Extract structured data (pricing tiers, logos, case studies)
+      Primary:    Floqer Nova
+      Alternates: Parallel Core, GPT-5.2
+
+  Format normalization
+
+    Clean and standardize company names (strip Inc./LLC,
+    extract acronyms)
+      Primary:    Floqer Nova
+      Alternates: GPT-5 nano, linkup-standard
+
+
+Model reference
+---------------
+
+Floqer Native
+  (returns result + web_citations; flat output_format;
+  string / number / boolean type support)
+
+  floqer-nova           Floqer Nova                  1 credit
+
+Perplexity Sonar
+  (returns result + web_citations; flat output_format; supports
+  raw_array output)
+
+  sonar-agent-deep      Floqer Deep                  0.5 credits
+
+Parallel
+  (returns result + reasoning + web_citations;
+  description-rich output_format; supports raw_array output)
+
+  parallel-base         Floqer Web Agent Base 1.1    1.5 credits
+  parallel-core         Floqer Web Agent Core        2.5 credits
+
+OpenAI
+  (returns result + web_citations; flat output_format;
+  supports raw_array output)
+
+  gpt-5.2               GPT 5.2                      5 credits
+  gpt-5-nano            GPT 5 Nano                   0.2 credits
+
+Linkup
+  (returns result + web_citations; flat output_format)
+
+  linkup-standard       Floqer Web Agent Lite        0.5 credits
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-08.
+
+Full interactive reference: https://floqer.com/docs/reference
+Action catalog: https://floqer.com/docs/action-catalog.txt

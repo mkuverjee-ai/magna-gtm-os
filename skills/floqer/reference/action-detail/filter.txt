@@ -1,0 +1,379 @@
+ACTION_ID: filter
+NAME: Filter
+CATEGORY: Data Operations
+CREDITS: 0
+
+Skip rows that don't satisfy a set of conditions. Rows that pass continue
+to the next action in the chain. Rows that fail stop here — downstream
+cells stay queued and never run for that row.
+
+Distinct from `run_if` on a regular action: `run_if` gates ONE action
+per row, `filter` gates the entire downstream chain. Use filter when
+several downstream actions all share the same row-level prerequisite
+(non-empty email, score above a threshold, country in a list, etc.) so
+you don't have to copy the same `run_if` onto each one.
+
+⚠ READ FIRST — if a filter unexpectedly passes 0 rows, suspect the
+operator dialect first: the filter action uses `is`, not `is equal to`
+(that is the `/rows/list` dialect). Verified 2026-06-08.
+
+INDEX:
+  1. Inputs
+  2. Outputs
+  3. How to configure
+  4. Key notes
+  5. Where it fits in a workflow
+  6. When to use
+  7. When not to use
+  8. Operator catalog
+
+================================================================================
+1. INPUTS
+================================================================================
+
+path_conditions (array of condition groups, required)
+  An array of GROUPS. A row passes the filter when the whole boolean
+  expression — groups joined by their `combinator`, leaves inside each
+  group also joined by their `combinator` — evaluates true.
+
+  Each entry in `path_conditions` is a GROUP:
+
+    conditions  Array of leaf conditions (described below). Leaves are
+                joined left-to-right using each leaf's `combinator`
+                (AND / OR). The first leaf's `combinator` is ignored —
+                it has nothing to combine with.
+    combinator  How this group joins the previous group at the
+                group level: `"AND"` (default) or `"OR"`. Ignored on
+                the first group.
+
+  Each entry in a group's `conditions` is a LEAF:
+
+    variable    Public reference token whose resolved per-row value is
+                compared. Use `{{input.<field_name>}}` for a sheet
+                input or `{{<action_instance_id>.<field_name>}}` for
+                an upstream action's output.
+    operator    Comparison operator from the catalog in section 8. The
+                variable's stored type is auto-derived from the chain —
+                you don't pass it.
+    values      Array of comparison values. Required for most
+                operators; ignored by `is empty` / `is not empty`. For
+                `is between`, pass `[low, high]`. Each item is a
+                literal — variable references inside `values` are NOT
+                resolved.
+    combinator  How this leaf joins the previous leaf in the same
+                group: `"AND"` (default) or `"OR"`. Ignored on the
+                first leaf in a group.
+
+================================================================================
+2. OUTPUTS
+================================================================================
+
+(no output fields — passing rows continue unchanged; failing rows stop
+at this action and downstream cells are absent.)
+
+================================================================================
+3. HOW TO CONFIGURE
+================================================================================
+
+Configure Action body — single group, all leaves AND'd
+(equivalent to: email is not empty AND employee_count >= 2):
+
+{
+  "inputs": {
+    "path_conditions": [
+      {
+        "conditions": [
+          { "variable": "{{input.email}}", "operator": "is not empty" },
+          {
+            "variable": "{{enrich_company_linkedin_profile_1.employee_count}}",
+            "operator": "greater than or equal to",
+            "values": ["2"],
+            "combinator": "AND"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+Configure Action body — two groups joined by OR
+(equivalent to: (email is not empty AND employee_count >= 2) OR (size between 1 and 5)):
+
+{
+  "inputs": {
+    "path_conditions": [
+      {
+        "conditions": [
+          { "variable": "{{input.email}}", "operator": "is not empty" },
+          {
+            "variable": "{{enrich_company_linkedin_profile_1.employee_count}}",
+            "operator": "greater than or equal to",
+            "values": ["2"],
+            "combinator": "AND"
+          }
+        ]
+      },
+      {
+        "combinator": "OR",
+        "conditions": [
+          {
+            "variable": "{{enrich_company_linkedin_profile_1.size}}",
+            "operator": "is between",
+            "values": ["1", "5"]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+Field-by-field:
+  - path_conditions                            Array of GROUPS. Each
+                                                group is a `{ conditions[],
+                                                combinator? }` object.
+  - path_conditions[].combinator               `"AND"` (default) or
+                                                `"OR"`. Determines how
+                                                this group joins the
+                                                previous group. Ignored
+                                                on the first group.
+  - path_conditions[].conditions               Array of LEAF conditions
+                                                inside the group.
+  - path_conditions[].conditions[].variable    Public reference token.
+  - path_conditions[].conditions[].operator    Comparison operator
+                                                (section 8).
+  - path_conditions[].conditions[].values      Array of literal
+                                                comparison values.
+  - path_conditions[].conditions[].combinator  `"AND"` (default) or
+                                                `"OR"`. Determines how
+                                                this leaf joins the
+                                                previous leaf in the
+                                                same group. Ignored on
+                                                the first leaf.
+
+Pass `values` as an array of strings; number / date matchers coerce as
+needed. An empty `path_conditions` array passes every row.
+
+================================================================================
+4. KEY NOTES
+================================================================================
+
+- Two layers of `combinator`. Leaves inside a group are joined left-to-
+  right by each leaf's `combinator`; groups are joined left-to-right by
+  each group's `combinator`. Default at both levels is `"AND"`. The
+  first leaf / first group's `combinator` is ignored — it has nothing
+  to combine with.
+- **Evaluation is STRICTLY LEFT-TO-RIGHT — there is no AND-binds-
+  tighter precedence.** Verified 2026-05-26. A group with leaves
+  `[country=US, score>=50 OR, tag=lead AND]` evaluates as
+  `((country=US OR score>=50) AND tag=lead)`, NOT as the math-style
+  `(country=US OR (score>=50 AND tag=lead))`. If you need
+  AND-binds-tighter precedence, split the AND-clauses into
+  separate groups and join the groups with `OR` (see the two-group
+  body shape in §3).
+- Mixing AND / OR in the same flat list. Because every leaf carries its
+  own `combinator`, you can express `A AND B OR C` inside a single
+  group — but read the previous bullet carefully so you know how it
+  will parse.
+- **Multi-value `is` / `is not` works as set membership (SQL `IN`).**
+  Verified 2026-05-26. `{"variable": "{{input.country}}", "operator":
+  "is", "values": ["US", "UK"]}` passes rows whose country equals
+  US OR UK — not an exact-string-match against the whole array.
+  Same for `is not` (rejects rows matching any value in the array).
+- `variable` is auto-typed from the chain. The same operator can mean
+  different things for different types (`contains` for strings vs.
+  arrays); the catalog in section 8 lists what's valid per type.
+- Empty `path_conditions` (no groups) passes every row. To drop every
+  row, use a contradictory condition or just delete the action.
+- Rows that fail the filter are NOT errors. The filter cell's status
+  is `condition_not_met` (NOT `complete`) — the filter ran, the row
+  didn't pass. On a FRESH run (downstream cells have never executed
+  for this row), the downstream cells are absent from the row's
+  `cells` map; `row_status` settles on `complete` once every
+  reachable cell has run (verified 2026-05-26 on both prod and
+  staging — earlier reports of rows stuck in `running` forever do
+  not reproduce on the current engine). Treat that pattern as
+  expected, not a bug, when polling Rows / List.
+
+- **Stale downstream cells on RE-RUN after a filter starts
+  blocking** (verified 2026-05-26 on staging). If a row previously
+  ran the full chain (downstream cells `complete` with outputs)
+  and you then PATCH the filter to NOW block that row, a
+  subsequent run leaves the downstream cells with their PRIOR
+  `complete` status and PRIOR outputs — the engine doesn't
+  re-evaluate them, and `list_rows` returns the stale snapshot.
+  This trips up "I tightened the filter, re-ran, why are rejected
+  rows still showing enriched outputs?" debugging. To force a
+  clean re-evaluation: delete and re-add the affected rows, OR
+  invalidate the cache by PATCHing one of the downstream actions
+  (any inputs change re-keys its cache).
+
+- **Silent acceptance of malformed config — three flavours
+  (verified 2026-05-26).** The filter's PATCH validator is
+  permissive in ways that can mask bugs:
+    - **Unknown `operator`** (e.g. `"equals"` instead of `"is"`,
+      `"is equal to"` instead of `"is"` — the latter is the
+      `/rows/list` dialect, NOT the filter dialect): PATCH returns
+      200 with no warning. At runtime, the operator silently
+      evaluates to false for every row, so every row comes back
+      `condition_not_met`. Visually identical to "no values
+      matched", so the diagnostic trail points the wrong way.
+      Always pick operator strings from §8.
+    - **Unknown `combinator` value** (e.g. `"XOR"`, lowercase
+      `"and"`): PATCH returns 200 with no warning. At runtime, the
+      unknown combinator silently defaults to `AND`. If you typo
+      `"AND"` as `"and"` expecting case-insensitive equivalence,
+      you'll get AND behaviour but won't notice if AND was what
+      you wanted anyway — easy to ship a typo.
+    - **Group object missing the `conditions` key** (e.g.
+      `[{"combinator":"AND"}]`): PATCH returns 200 BUT with a
+      `warnings[]` entry: `"Field 'path_conditions'[0] is not a
+      valid condition group."` The malformed group is silently
+      dropped from the persisted `path_conditions[]` — if it was
+      your only group, the filter ends up empty and passes every
+      row. Always check `response.warnings[]` after PATCHing a
+      filter — it's the only signal you'll get.
+
+- **TWO OPERATOR DIALECTS — never copy operators between a
+  filter/`run_if` body and a `/rows/list` query.** Verified
+  2026-06-08. The in-chain filter action AND `run_if` use the
+  dialect: `is` / `is not` / `is empty` / `is not empty` /
+  `contains` / `greater than or equal to` / `is between` (full set
+  in §8). The `POST /rows/list` query endpoint uses a DIFFERENT
+  dialect: `is equal to` / `not equal to` / `not empty` /
+  `contains any of` / … Pasting a rows/list operator (e.g.
+  `is equal to`) into a filter-action PATCH is accepted — HTTP 200,
+  no warning — but at runtime EVERY row returns
+  `condition_not_met`, visually IDENTICAL to "no rows matched the
+  values". Pick filter/`run_if` operators only from §8.
+
+- The filter action's cell status doubles as a row-level tag you can
+  query later. Because `complete` ↔ condition met and
+  `condition_not_met` ↔ condition failed, you can isolate rows by
+  filter outcome via `POST /rows/list` with
+  `status_filters: [{action_instance_id, is: ["complete"]}]`. This
+  is the canonical workaround for the fact that List Rows
+  `filters[]` only filters on sheet inputs — see llms-full.txt
+  rows/list "Pattern: filter by action OUTPUT content" for the full
+  recipe, including the JS-sentinel variant for predicates that
+  don't fit `filter`'s operators.
+
+- The filter action's cell status doubles as a row-level tag you can
+  query later. Because `complete` ↔ condition met and
+  `condition_not_met` ↔ condition failed, you can isolate rows by
+  filter outcome via `POST /rows/list` with
+  `status_filters: [{action_instance_id, is: ["complete"]}]`. This
+  is the canonical workaround for the fact that List Rows
+  `filters[]` only filters on sheet inputs — see llms-full.txt
+  rows/list "Pattern: filter by action OUTPUT content" for the full
+  recipe, including the JS-sentinel variant for predicates that
+  don't fit `filter`'s operators.
+
+================================================================================
+5. WHERE IT FITS IN A WORKFLOW
+================================================================================
+
+UPSTREAM — what produces the value(s) being filtered on
+  Sheet inputs (most common): `{{input.country}}`, `{{input.email}}`.
+  Enrichment outputs: `{{enrich_company_linkedin_profile_1.employee_count}}`,
+  `{{person_work_email_waterfall_1.email}}`.
+  Classifier outputs: `{{llm_models_1.industry}}`.
+
+THIS ACTION
+  Evaluates each condition for the current row. Rows that pass continue
+  to the next action; rows that fail stop here — downstream cells stay
+  queued and never bill.
+
+DOWNSTREAM — actions that should only run for qualifying rows
+  Outreach: `instantly_add_to_campaign`, `reply_add_and_push_to_campaign`
+  (only contact qualifying leads).
+  CRM updates: `hubspot_update_object`, `salesforce_update_record`
+  (only sync rows that meet the bar).
+  Expensive enrichment: `person_enrich_using_apollo`,
+  `scrape_web_page_using_firecrawl` (only spend credits on the rows
+  that need it).
+
+================================================================================
+6. WHEN TO USE
+================================================================================
+
+Use filter when the same row-level prerequisite gates several downstream
+actions, OR when you want failing rows to short-circuit the rest of the
+chain instead of running every action and writing empty / placeholder
+values.
+
+  Email-required outreach
+    Several downstream actions (`instantly_add_to_campaign`,
+    `reply_add_and_push_to_campaign`) require a non-empty work email.
+    Add filter on `{{<email_waterfall>.email}} is not empty` once
+    upstream of the outreach actions instead of putting the same
+    `run_if` on each one.
+
+  Country / region routing
+    Filter on `{{input.country}} is "US"` or `is in ["US", "CA"]`
+    so US/CA rows continue to the US-specific actions and other rows
+    skip the rest of the chain.
+
+  Quality threshold gating
+    Filter on `{{<scoring_action>.score}} greater than or equal to 70`
+    so only high-quality rows reach the outreach / CRM-write actions.
+
+  Skip rows already in CRM
+    Pair `hubspot_lookup_object` upstream with filter on
+    `{{<hubspot_lookup>.id}} is empty` to keep only rows that don't
+    already exist in HubSpot.
+
+================================================================================
+7. WHEN NOT TO USE
+================================================================================
+
+Skip filter when:
+
+  Only one downstream action needs the gate
+    Use `run_if` on that single action instead — no need to insert a
+    filter node into the chain.
+
+  The decision is per-action, not per-row
+    `run_if` is per-action; filter is per-row-and-then-downstream. If
+    different downstream actions need different conditions, use
+    multiple `run_if`s rather than chaining filters.
+
+  You want failing rows to still run downstream
+    Filter halts the chain for failing rows. If you want every row to
+    reach the next action regardless, set `run_if` with
+    `continue_workflow_if_run_condition_not_met: true` on that action
+    instead.
+
+================================================================================
+8. OPERATOR CATALOG
+================================================================================
+
+The variable's type is auto-derived from the chain — pick the operator
+from the row that matches the variable's stored type:
+
+Universal (any type)
+  is, is not, is empty, is not empty
+  `is empty` / `is not empty` ignore `values`.
+
+string / email / url / imageUrl
+  contains, does not contain, starts with, does not start with,
+  ends with, does not end with
+  Matching is case-insensitive.
+
+number / currency
+  greater than, less than, greater than or equal to, less than or
+  equal to, is between
+  For `is between`, pass `values: [min, max]`.
+
+date
+  is after, is before, is between
+  Values are parsed by `moment(...)`. For `is between`, pass
+  `values: [start, end]`.
+
+array / structured_array / json
+  contains, does not contain
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-08.
+Full interactive reference: https://floqer.com/docs/reference
+Action catalog: https://floqer.com/docs/action-catalog.txt

@@ -1,0 +1,182 @@
+ACTION_ID: person_work_email_waterfall
+NAME: Find Work Email
+CATEGORY: enrich
+CREDITS: 0.1-10
+
+Find a person's work email using domain and LinkedIn URL.
+
+INDEX:
+  1. Inputs
+  2. Outputs
+  3. How to configure
+  4. Key notes
+  5. Where it fits in a workflow
+  6. When to use
+  7. When not to use
+
+================================================================================
+1. INPUTS
+================================================================================
+
+full_name (string, optional) — Full Name
+  The full name of the prospect. Can be passed as a single string,
+  or composed inline from two upstream variables joined with a
+  space — e.g. "{{input.first_name}} {{input.last_name}}".
+
+linkedin_url (url, optional) — LinkedIn URL
+  LinkedIn URL of the prospect.
+
+company_domain (url, optional) — Company Domain
+  The prospect's current company domain (e.g. "acme.com").
+
+email_providers (raw_array, optional) — Email Providers
+  The ordered waterfall of email-finder providers, tried in sequence
+  until one returns a hit. Default order: blitz, hunter, prospeo,
+  leadmagic, findymail, datagma, apollo, snov, wiza. The order IS
+  configurable — PATCH this field via Configure Action with the
+  providers in the desired order, or use the Reorder Waterfall
+  Providers endpoint (PATCH .../actions/{id}/waterfall/email_providers
+  with {"providers": [...]}). Verified reorderable 2026-06-11.
+
+Required combinations — every individual input is marked optional,
+but at least one of the following must be supplied or the action
+cannot run:
+  - `linkedin_url` alone, OR
+  - `full_name` AND `company_domain` together.
+Passing all three is supported and is the highest-signal config —
+the underlying waterfall providers will use whichever fields they
+each need.
+
+email_validation (type: string, optional) — Email Validation
+  Optional email-validation service to run on the resolved email.
+  Only ONE validator can be selected per configuration — these do
+  not chain. Allowed values:
+    - "ZeroBounce"      (1 credit)
+    - "MillionVerifier" (0.1 credits)
+    - "NeverBounce"     (1 credit)
+    - "Allegrow"        (0.1 credits)
+    - "None"            (default — no validation)
+
+================================================================================
+2. OUTPUTS
+================================================================================
+
+work_email (type: email) — The resolved work email of the contact.
+
+================================================================================
+3. HOW TO CONFIGURE
+================================================================================
+
+Configure Action body:
+
+{
+  "inputs": {
+    "full_name": "{{input.full_name}}",
+    "company_domain": "{{input.company_domain}}",
+    "linkedin_url": "{{input.linkedin_url}}",
+    "email_validation": "MillionVerifier"
+  }
+}
+
+Supply at least one of: `linkedin_url` alone, OR `full_name` +
+`company_domain` together. `email_validation` is optional and
+accepts exactly one of `"ZeroBounce"`, `"MillionVerifier"`,
+`"NeverBounce"`, `"Allegrow"`, or `"None"` (default).
+
+================================================================================
+4. KEY NOTES
+================================================================================
+
+- API metadata reports `required: true` for `full_name`,
+  `linkedin_url`, and `company_domain` on the `POST /actions/add`
+  response. That is stricter than the actual rule. Runtime
+  validation accepts the looser at-least-one-of pattern documented
+  in §1 INPUTS (`linkedin_url` alone, OR `full_name` +
+  `company_domain` together). Trust the §1 prose, not the schema
+  metadata — a strict reader of the metadata would over-supply.
+- Provider ORDER is configurable via the `email_providers` field
+  (see §1) — reorder it with Configure Action (PATCH `email_providers`
+  with the providers in your desired order) or the Reorder Waterfall
+  Providers endpoint. The shipped provider set is blitz, hunter,
+  prospeo, leadmagic, findymail, datagma, apollo, snov, wiza;
+  reordering is supported and verified (2026-06-11). Restricting to a
+  subset by PATCHing a shorter `email_providers` list is accepted by
+  the API but not yet verified end-to-end; adding a brand-new provider
+  is not supported.
+- Email validation is a single, optional pick. The
+  `email_validation` field accepts one validator (`ZeroBounce`,
+  `MillionVerifier`, `NeverBounce`, `Allegrow`) or `"None"`.
+  Validators do not chain.
+
+- Provider input requirements split the waterfall in half.
+  Some providers in the chain (e.g. Findymail, Lightning) ONLY
+  accept `linkedin_url` as input — they don't consume name+domain
+  at all. Others (pattern-based generators, profile-DB lookups
+  keyed on name) consume `full_name` + `company_domain`. The
+  practical consequences:
+    - Passing `linkedin_url` enables the LinkedIn-only providers
+      and is the highest-coverage configuration. It's also what
+      makes the email returned the person's CURRENT work email —
+      which is the person's CURRENT employer regardless of which
+      `company_domain` you passed. Right behaviour for "find this
+      person's current work email", wrong behaviour for "validate
+      this person actually works at the company we're targeting"
+      (e.g. when an upstream web agent surfaced someone who has
+      since left).
+    - Omitting `linkedin_url` (pass only `full_name` +
+      `company_domain`) disables the LinkedIn-only providers —
+      you lose coverage from those. The remaining providers must
+      find an email under the target domain, which for
+      pattern-based generators means the constraint is honoured.
+      For profile-DB lookups that index people by name across
+      companies, the domain hint is weaker and a name match from
+      a different domain can still surface.
+
+  ICP-membership validation pattern: omit `linkedin_url` and pass
+  only `full_name` + `company_domain` so that wrong-company
+  records fail cleanly on the pattern-based providers. It's a
+  cost-coverage trade-off (lose LinkedIn-only providers) and it's
+  not bulletproof on the cross-name-index providers. For a hard
+  guarantee, pair it with an upstream `enrich_person_linkedin_profile`
+  step and a downstream filter on `current_company_domain` matching
+  `company_domain`. Empirically: omitting `linkedin_url` corrected
+  roughly half of the "wrong company" cases in a small test, with
+  the remainder needing the LinkedIn-scrape verification step.
+
+================================================================================
+5. WHERE IT FITS IN A WORKFLOW
+================================================================================
+
+Pattern: enrich_person_linkedin_profile -> person_work_email_waterfall ->
+person_work_email_verification_by_zerobounce (or another verifier) ->
+outreach.
+
+================================================================================
+6. WHEN TO USE
+================================================================================
+
+Use person_work_email_waterfall to resolve a prospect's work email
+from either:
+  - a LinkedIn URL alone, or
+  - a full name + company domain.
+Passing all three works too and gives the providers more signal —
+but it's not required. Either grouping on its own is enough to run
+the action.
+
+================================================================================
+7. WHEN NOT TO USE
+================================================================================
+
+Need a personal email
+  -> personal_email_by_linkedin_url_waterfall
+     (https://floqer.com/docs/action-detail/personal_email_by_linkedin_url_waterfall.txt)
+
+Need a phone number
+  -> personal_phone_number_by_linkedin_url_waterfall
+     (https://floqer.com/docs/action-detail/personal_phone_number_by_linkedin_url_waterfall.txt)
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-11.
+Full interactive reference: https://floqer.com/docs/reference
+Action catalog: https://floqer.com/docs/action-catalog.txt

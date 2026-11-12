@@ -1,0 +1,411 @@
+ACTION_ID: llm_models
+NAME: AI Generate Content
+CATEGORY: AI
+CREDITS: varies by model — see section 8 (Models reference)
+
+Generate prompt-based text using one of ~30 supported LLMs across
+OpenAI, Anthropic, Google, Groq (Llama / GPT OSS), DeepSeek, and
+Perplexity. Single action, model is chosen via the Model input.
+
+INDEX:
+  1. Inputs
+  2. Outputs
+  3. How to configure
+  4. Key notes
+  5. Where it fits in a workflow
+  6. When to use
+  7. When not to use
+  8. Models reference
+
+================================================================================
+1. INPUTS
+================================================================================
+
+model (string, required)
+  Model. The model id; see section 8.
+
+prompt (string, required)
+  Prompt. Prompt text; supports {{variable.references}}, resolved
+  per-row at runtime so each row gets its own prompt.
+
+output_format (string, optional)
+  Output Format. Format spec for structured output. Honoured ONLY by
+  OpenAI, Claude, and Gemini models. Setting it on a Groq / Perplexity
+  / DeepSeek call has no effect.
+
+================================================================================
+2. OUTPUTS
+================================================================================
+
+Outputs vary by the chosen model's handler group.
+
+generated_content (string) — the generated text. ALWAYS returned.
+
+reasoning (string) — model's reasoning trace. Returned only by:
+  - Groq models (GPT OSS 20b/120b, Llama 3.1 8b, Llama 3.3 70b,
+    Llama 4 Scout)
+  - Perplexity reasoning model (sonar-reasoning-pro)
+
+usage (json) — token + cost telemetry. Returned ONLY by OpenAI
+  models (GPT-5.x, GPT-4.x, o3, o3-mini). Nested fields:
+    model_cost_usd  (number) USD spent on this run
+    input_tokens    (number)
+    output_tokens   (number)
+    model_used      (string)
+
+Claude, Gemini, DeepSeek, and non-reasoning Perplexity models
+(sonar, sonar-pro) return only `generated_content`. Referencing
+{{llm_models_1.reasoning}} or {{llm_models_1.usage}} downstream of
+those models will resolve to empty / undefined.
+
+================================================================================
+3. HOW TO CONFIGURE
+================================================================================
+
+Configure Action body (free-text generation):
+
+{
+  "inputs": {
+    "model": "claude-sonnet-4-6",
+    "prompt": "Summarize this article in 3 bullets: {{input.article_text}}"
+  }
+}
+
+Configure Action body (structured output via `output_format`):
+
+{
+  "inputs": {
+    "model": "claude-sonnet-4-6",
+    "prompt": "Extract the company's industry, hq city, and headcount from {{input.about_text}}.",
+    "output_format": {
+      "industry": "string",
+      "hq_city":  "string",
+      "headcount": "number"
+    }
+  }
+}
+
+Field-by-field:
+  - model           Model id from section 8 (e.g. `claude-sonnet-4-6`,
+                    `gpt-5`, `llama-3.1-8b-instant`).
+  - prompt          Prompt text. `{{ref}}` tokens (e.g.
+                    `{{input.article_text}}`,
+                    `{{enrich_company_linkedin_profile_1.recent_news}}`)
+                    are resolved per row.
+  - output_format   Optional structured-output schema. Each top-level
+                    key becomes a referenceable output field on this
+                    action — Configure Action persists the schema to
+                    `responseConfiguration` so Add Action / Get Action
+                    Outputs surface the user-defined fields under
+                    `outputs[]` and downstream actions can wire
+                    `{{<this_action>.<field>}}` references. Honoured
+                    only by OpenAI / Claude / Gemini at runtime; setting
+                    it on a Groq / Perplexity / DeepSeek call still
+                    registers the outputs but the model ignores the
+                    schema and `generated_content` stays free-form.
+
+                    Two shapes are accepted:
+                      flat:    { "name": "string", "headcount": "number" }
+                      detail:  { "name": { "type": "string",
+                                           "description": "Person's full name" } }
+                    Use the detail form for Parallel-handler models on
+                    `llm_web_agents`; both work for `llm_models`.
+
+                    Allowed `type` values on `llm_models`:
+                      `string`, `number`, `boolean`, `json`.
+                    `"array"` and `"raw_array"` are both rejected at
+                    Configure Action time (verified 2026-06-08) with:
+                      `output_format.<field>.type "array" is not supported.
+                       Allowed: json, string, number, boolean.`
+                    For an array-shaped output, the most reliable
+                    pattern today is to declare the field as
+                    `"string"` and instruct the model to return a JSON
+                    array (or object) as the field value. Downstream
+                    consumers handle the parsing transparently:
+                    `raw_to_structured_array` accepts a JSON-encoded
+                    array string and discovers columns from it;
+                    `format_data_using_js_expression` can `JSON.parse`
+                    the value before reading nested fields. The
+                    `"json"` type is documented but STILL UNUSABLE at
+                    runtime (verified 2026-06-08) — a field declared
+                    `"json"` fails the cell with
+                    `"Invalid schema for response_format response: json
+                    is not valid under any of the given schemas."` The
+                    earlier (2026-05-26) null/`hasOwnProperty` CRASH is
+                    gone — the error is clean now — but `json` output
+                    remains broken. Until it's fixed, prefer the
+                    `string`-with-JSON pattern for any structured or
+                    array-shaped field. Note: `llm_web_agents`
+                    (Sonar handler) has a different allowed-types
+                    list — see that action-detail file.
+
+================================================================================
+4. KEY NOTES
+================================================================================
+
+- Pricing varies by model. The header CREDITS field is intentionally
+  generic; per-model pricing is documented separately.
+- `output_format` is honoured strictly only by OpenAI, Claude, and
+  Gemini models. On Groq / Perplexity / DeepSeek calls, the
+  behaviour is NOT clean "silent ignore" — Floqer creates the
+  declared output-field slots (so `{{ref}}` tokens resolve and the
+  fields appear in Get Action `outputs[]`), BUT the model's
+  response is dumped into EVERY declared field rather than parsed
+  into them. With a 3-field schema, all 3 fields contain the same
+  raw response — typically the model's freeform answer or a
+  JSON-in-markdown blob.
+  Practical guidance for Groq / Perplexity / DeepSeek models:
+  prompt for a single one-line plain-text answer and read
+  whichever first field you declared (or `generated_content` if
+  you declare no schema). Don't try to extract multiple structured
+  fields; do downstream parsing in a `format_data_using_js_expression`
+  step. The structured-output enforcement these models need to
+  honour an `output_format` schema doesn't exist on those
+  providers' APIs — Floqer can't fix it at the action layer.
+- `output_format` TYPE `json` STILL FAILS AT RUNTIME (verified
+  2026-06-08). A field declared with the `json` type fails the cell
+  with `"Invalid schema for response_format response: json is not
+  valid under any of the given schemas."` The earlier (2026-05-26)
+  null/`hasOwnProperty` CRASH is gone — the error is clean now — but
+  `json` output is still unusable. Workaround (still required):
+  declare the field as `string`, instruct the model to return JSON
+  inside that string, and `JSON.parse` it downstream (or feed it to
+  `raw_to_structured_array`, which accepts a JSON-encoded array
+  string).
+- All models populate `generated_content`. `reasoning` is only
+  populated by Groq models and `sonar-reasoning-pro`. `usage`
+  (token + cost telemetry) is only populated by OpenAI models.
+- `output_format` updates `responseConfiguration` at Configure Action
+  time. After PATCHing it, re-fetch with Get Action / Get Action
+  Outputs to see the new fields under `outputs[]` with their
+  `reference` tokens before wiring downstream actions.
+  Readback caveat: the `output_format` field in the Get Action
+  response is a type discriminator string (`"fields"`), not the
+  schema object you sent. The persisted schema is not echoed back —
+  inspect `outputs[]` to see the expanded fields.
+- To refresh existing rows under the new schema without re-running
+  the whole chain, call Run Action
+  (`POST /actions/{action_instance_id}/run`) — pass rows_ids to run particular rows,
+  or an empty body to re-run every row through this action only,
+  or `run_next_action: true` to also re-run anything downstream.
+- Writing only, not research. `llm_models` consumes context and
+  produces text — it is not designed to fetch fresh information from
+  the web. If the prompt requires up-to-date facts (recent funding
+  rounds, leadership changes, product launches, news), gather them
+  upstream in a separate action and pipe the structured results into
+  this action's prompt as variable references. Typical sources:
+  `llm_web_agents` for grounded web research with citations, an
+  enrichment action (PDL / store_leads / LinkedIn scrape) for
+  structured firmographics, or a scrape action for a known page.
+  Treat this as a hard separation: the web agent does research,
+  never writing; `llm_models` does writing, never research. Mixing
+  them produces hallucinated content and bypasses the grounding /
+  citations the web agent would have provided.
+
+================================================================================
+5. WHERE IT FITS IN A WORKFLOW
+================================================================================
+
+UPSTREAM — what feeds the prompt
+  Almost any source. Typical patterns:
+    - Enrichment data piped into a prompt for personalisation:
+      enrich_company_linkedin_profile -> llm_models ("write a
+      personalised opener using {{...company_name}} and
+      {{...recent_news}}").
+    - Scrape outputs piped in for summarisation:
+      scrape_web_page_using_firecrawl -> llm_models ("summarise
+      the page in 3 bullets").
+    - Direct sheet inputs piped into a classifier:
+      input -> llm_models ("classify this support ticket as one
+      of: bug, feature_request, question").
+
+THIS ACTION
+  Sends the resolved prompt to the chosen model and returns the
+  generated text. Each row runs independently. Cost is per row,
+  per model.
+
+DOWNSTREAM — what consumes the output
+  Outreach:            llm_models -> instantly_add_to_campaign /
+                       reply_add_and_push_to_campaign (personalised
+                       email body via custom_variables).
+  CRM updates:         llm_models -> hubspot_update_object /
+                       salesforce_update_record (write a summary
+                       or score onto the contact / opportunity).
+  Filtering / routing: llm_models -> workflow_path_filter (branch
+                       on the classifier's output).
+  Further processing:  llm_models -> format_data_using_js_expression
+                       (clean / extract structured data from the
+                       generated text).
+
+================================================================================
+6. WHEN TO USE
+================================================================================
+
+Use llm_models when the task requires natural-language understanding
+or generation that deterministic code cannot do well.
+
+  Personalisation
+    Generate per-row openers, follow-ups, or talking points using
+    upstream enrichment data. The prompt template references the
+    enriched fields; each row's output is unique to that row.
+
+  Summarisation
+    Compress long unstructured text (scraped pages, transcripts,
+    documents) into a short brief. Use cheap+fast models (Llama
+    3.1 8b, GPT 4.1 Nano, GPT OSS 20b) for high volume; reach for
+    Claude Sonnet 4.6 or GPT-5 only when the source is complex
+    enough to need it.
+
+  Classification with reasoning
+    Categorise rows where the rules can't be expressed as a regex
+    or boolean — routing tickets, scoring lead quality, deciding
+    outreach tier from a free-text persona.
+
+  Structuring unstructured data for a CRM or database
+    Map free-text into a controlled vocabulary your downstream
+    system expects. Pass the allowed values inline in the prompt
+    (e.g. the HubSpot industry list, a lead status enum, segment
+    labels) along with the unstructured upstream data; the LLM
+    returns the best-fit value from the list, ready to write back
+    via hubspot_update_object / salesforce_update_record.
+
+    Example: an enrichment action returns a free-text company
+    description. The prompt provides the CRM's predefined industry
+    options ("SaaS, Fintech, Healthtech, ...") plus the company
+    description. The LLM picks the closest matching industry, which
+    flows downstream as a clean enum value.
+
+  Extraction from semi-structured text
+    Pull specific fields (job title, seniority, location intent)
+    out of LinkedIn bios, web copy, or descriptions where the
+    location and format vary by source.
+
+  Translation / rewriting
+    Re-render text in a different tone, language, or length —
+    polishing, anonymising, simplifying.
+
+  Scoring as a fallback when fixed math isn't enough
+    `format_data_using_js_expression` is the default for scoring,
+    counting, and tier classification — it is deterministic, free,
+    and fast, and should be the first choice. In rare cases where
+    the scoring rule genuinely depends on qualitative judgment that
+    can't be expressed as fixed weights — e.g. weighing a $50M
+    Series C heavier than a $5M seed when both are "funding
+    CONFIRMED", or recognising that some signal combinations
+    multiply (new CRO + sales org restructure together is sharper
+    than either alone) — a high-reasoning model (Claude Opus 4.6,
+    GPT-5.4, o3) reading the per-field signal data and producing a
+    score is a viable alternative. Treat this as the exception, not
+    the default. Note this is a different role than a final-step
+    AI summary that writes a brief from already-scored data — that
+    is a writing task and stays an `llm_models` step too, just at
+    the end of the chain.
+
+  Model selection — quick guidance
+    Cheap and fast (high volume):  Llama 3.1 8b, GPT OSS 20b,
+                                   GPT 4.1 Nano, Gemini 3.1 Flash
+                                   Lite.
+    Balanced:                      GPT 4.1, Claude Sonnet 4.5,
+                                   Gemini 3 Flash, Llama 4 Scout.
+    Deep reasoning:                Claude Sonnet 4.6, Claude Opus
+                                   4.6, GPT-5.4, o3.
+    Web-grounded answers:          Sonar, Sonar Pro, Sonar
+                                   Reasoning Pro (Perplexity).
+
+================================================================================
+7. WHEN NOT TO USE
+================================================================================
+
+Skip llm_models when:
+
+  Deterministic transformations
+    String formatting, date parsing, arithmetic, regex extraction,
+    JSON shaping. Use format_data_using_js_expression. LLMs are
+    slower, more expensive, and non-deterministic.
+
+  Simple rule-based filtering
+    "Keep rows where country == US." Use workflow_path_filter — it
+    is instant and free.
+
+  Web search with citations as the primary need
+    If the answer must be grounded in current web data with
+    sources, use llm_web_agents. It handles the search + citation
+    flow and returns the sources alongside the answer.
+
+  Browser-driven multi-step tasks
+    Filling forms, clicking through paginated results, scraping
+    behind logins, multi-step site navigation. Use
+    ai_web_navigator (Web Pilot).
+
+  Strict structured outputs from a model that doesn't honour
+  Output Format
+    Groq, Perplexity, and DeepSeek models ignore the Output Format
+    spec. If you need typed JSON output, either pick an OpenAI /
+    Claude / Gemini model, or post-process the text with
+    format_data_using_js_expression.
+
+================================================================================
+8. MODELS REFERENCE
+================================================================================
+
+Pass the model id (left column) as the value of the `model` field.
+
+OpenAI
+  (returns generated_content + usage; honours output_format)
+
+  gpt-5.4               GPT 5.4
+  gpt-5.4-mini          GPT 5.4 Mini
+  gpt-5.4-nano          GPT 5.4 Nano
+  gpt-5.2               GPT 5.2
+  gpt-5.1               GPT 5.1
+  gpt-5                 GPT 5
+  o3                    o3
+  o3-mini               o3 Mini
+  gpt-4o                GPT 4o
+  gpt-4o-mini           GPT 4o Mini
+  gpt-4.1               GPT 4.1
+  gpt-4.1-nano          GPT 4.1 Nano
+
+Anthropic Claude
+  (returns generated_content; honours output_format)
+
+  claude-opus-4-6                Claude Opus 4.6
+  claude-opus-4-5-20251101       Claude Opus 4.5
+  claude-sonnet-4-6              Claude Sonnet 4.6
+  claude-sonnet-4-5-20250929     Claude Sonnet 4.5
+
+Google Gemini
+  (returns generated_content; honours output_format)
+
+  gemini-3.1-pro-preview         Gemini 3.1 Pro Preview
+  gemini-3-flash-preview         Gemini 3 Flash Preview
+  gemini-3.1-flash-lite-preview  Gemini 3.1 Flash Lite Preview
+
+Groq
+  (returns generated_content + reasoning; ignores output_format)
+
+  openai/gpt-oss-120b                        GPT OSS 120B
+  openai/gpt-oss-20b                         GPT OSS 20B
+  llama-3.1-8b-instant                       Llama 3.1 8b Instant
+  llama-3.3-70b-versatile                    Llama 3.3 70b
+  meta-llama/llama-4-scout-17b-16e-instruct  Llama 4 Scout
+
+DeepSeek
+  (returns generated_content; ignores output_format)
+
+  deepseek-chat      Deepseek Chat
+  deepseek-reasoner  Deepseek Reasoner
+
+Perplexity
+  (returns generated_content; sonar-reasoning-pro also returns
+  reasoning; ignores output_format)
+
+  sonar                Sonar
+  sonar-pro            Sonar Pro
+  sonar-reasoning-pro  Sonar Reasoning Pro  (also returns reasoning)
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-08.
+Full interactive reference: https://floqer.com/docs/reference
+Action catalog: https://floqer.com/docs/action-catalog.txt

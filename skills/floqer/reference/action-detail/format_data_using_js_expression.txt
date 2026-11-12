@@ -1,0 +1,847 @@
+ACTION_ID: format_data_using_js_expression
+NAME: Workflow Data Formatter
+CATEGORY: transform
+CREDITS: 0
+
+Run a single JavaScript expression over upstream variables and emit
+the result. The expression can be as simple as a string concat or as
+involved as a multi-line IIFE that parses JSON, defaults missing
+values, and returns a cleaned object — whatever the expression
+returns becomes the output (objects and arrays are JSON-stringified).
+
+Common uses: concatenation, slimming CRM/scrape outputs to relevant
+fields, parsing stringified JSON, normalizing URLs and names,
+filtering/sorting/deduping arrays — see §8 PATTERN LIBRARY for
+worked recipes.
+
+INDEX:
+  1. Inputs
+  2. Outputs
+  3. How to configure
+  4. Key notes
+  5. Where it fits in a workflow
+  6. When to use
+  7. When not to use
+  8. Pattern library
+       8.1 Reading a structured_array (responseId pattern)
+       8.2 JSON parsing
+       8.3 Chained JSON between formatters (escape-sequence handling)
+       8.4 LinkedIn URL normalization
+       8.5 Name cleaning (emoji, Unicode, capitalization)
+       8.6 Employment date extraction with fuzzy company match
+       8.7 Array filter / sort / dedupe
+       8.8 Comments and long formulas
+       8.9 Defensive patterns
+
+================================================================================
+1. INPUTS
+================================================================================
+
+data_formatter (type: js_expression, required)
+  A single JavaScript expression that the data formatter evaluates;
+  whatever the expression returns is written into the output column
+  (strings, numbers, arrays, and objects are all valid — objects and
+  arrays get serialized).
+
+  Two evaluation modes — pick the right one for the job:
+
+    1. PURE FLOQER-EXPRESSION TEMPLATE — DEFAULT for field extraction
+       from any structured upstream output. No JS evaluation, no
+       quote-wrapping rules to think about. The template engine resolves
+       the reference, follows optional-chaining + bracket-key access, and
+       writes the resolved value to the output:
+
+         {{<lookup>.record}}?.["Email 1 — LLM-generated opener"]
+         {{<picker>.formatted_data}}?.first_name
+         {{<pdl_person>.person_phone_numbers}}?.[0]
+
+       Reach for this whenever the task is "pluck field X off output Y"
+       — even if the upstream stored value is a JSON-stringified object
+       (e.g. a previous JS formatter returned an object); the template
+       engine handles the parse for you, so you don't need JS+JSON.parse
+       gymnastics. Don't over-engineer extraction in JS.
+
+       Works against any upstream output that has a parsable structured
+       shape: JS-formatter outputs, lookup `record` outputs (see
+       https://floqer.com/docs/action-detail/lookup_another_floqer_workflow_row.txt
+       §6 ACCESSING RECORD FIELDS), raw_array / json outputs, etc.
+
+       FORM: paste the bare expression directly as `data_formatter` —
+       no `return`, no `const`, no IIFE wrapper. The pure template form
+       is shorter, faster to read, and avoids the variable-substitution
+       quoting traps that show up once you add JS around it.
+
+           // ✅ canonical
+           {{lookup_1.record}}?.["full_name"]
+
+           // ❌ unnecessarily wrapped — same result, more surface area
+           (() => { const rec = {{lookup_1.record}}; return rec?.["full_name"]; })()
+           (() => { return {{lookup_1.record}}?.["full_name"]; })()
+
+    2. JS EXPRESSION — for actual LOGIC. Use when you need
+       conditionals, type coercion, JSON.parse on a known-stringified
+       upstream that the template engine can't parse, array iteration /
+       filtering / sorting / scoring, or any multi-line work via IIFE.
+
+       When you DO reach for JS, prefer direct `return` over binding an
+       intermediate `const` you'll use only once. Single-use bindings
+       are noise in a single-expression formatter.
+
+           // ✅ direct return
+           (() => { const list = {{a.items}}; return list?.filter(x => x.active).length; })()
+
+           // ❌ pointless intermediate
+           (() => { const list = {{a.items}}; const active = list?.filter(x => x.active); return active.length; })()
+
+  The rest of this section describes the JS-expression mode.
+
+  Note: must be a single expression, not a script. Multi-line logic
+  (parsing, branching, helpers) is supported by wrapping the body in
+  an IIFE — (() => { ... return value; })() — which is the canonical
+  pattern in Floqer.
+
+  Variable references inside the expression follow Floqer's variable
+  syntax (see https://floqer.com/docs/concepts.txt §5 Variable References). Treat any
+  variable-sourced value as untrusted: it may be empty, malformed, or
+  a stringified JSON blob — JSON.parse with a try/catch or fallback
+  (see §8.2).
+
+  VARIABLE SUBSTITUTION BEHAVIOR — important to internalize before
+  writing formulas. The platform substitutes the ENTIRE token —
+  surrounding quotes included — with the LIVE JS value of the field
+  at runtime, not its stringified form. What you get back depends on
+  the upstream field's type and how you wrapped the reference:
+
+    // String-valued field — double-quote-wrap; the quotes get eaten,
+    // you end up with a JS string
+    const name = "{{<contact>.full_name}}";       // → const name = <actual_string>;
+
+    // Array/object-valued field — reference unquoted; you already
+    // have the live value, ready to .map / .filter
+    const exps = {{<linkedin>.experiences}};       // → const exps = <actual_array>;
+
+    // JSON-encoded string from a CRM payload (e.g. Apollo, Salesforce)
+    // — backtick-wrap, then JSON.parse (see §8.2)
+    const history = JSON.parse(`{{<apollo>.employment_history}}` || "[]");
+
+  Two traps:
+
+  Trap 1 — wrapping an ARRAY/OBJECT field in DOUBLE QUOTES silently
+  coerces it. The substitution still injects the live value, but
+  you're now dereferencing it through String(<array>) — which
+  collapses to "[object Object]" or a comma-joined string and either
+  fails or returns garbage downstream. Reference array/object fields
+  UNQUOTED.
+
+  Trap 2 — wrapping a STRING field's ref in BACKTICKS injects
+  literal JSON quotes. Substitution handles backticks differently
+  from double/single quotes: it injects the field's value as its
+  JSON-stringified form INSIDE the template literal. For a string
+  field that means the wrapping JSON quotes survive as literal
+  characters in the resulting JS string:
+
+    // Upstream stored value: "" (empty string)
+    const direct = "{{<step>.field}}";   // → const direct = "";    // 0-char, falsy
+    const direct = `{{<step>.field}}`;   // → const direct = `""`;  // 2-char ['"','"'], TRUTHY
+    if (direct) /* fires on backtick form */ return direct;  // wrong branch returns "\"\""
+
+    // Upstream stored value: "acme.com"
+    const direct = "{{<step>.field}}";   // → const direct = "acme.com";    // clean
+    const direct = `{{<step>.field}}`;   // → const direct = `"acme.com"`;  // wrapping quotes embedded
+
+  Use double-quote-wrap for STRING fields. Reserve backticks for
+  JSON-typed fields you intend to pipe through JSON.parse — the
+  JSON-stringified injection is exactly the input shape JSON.parse
+  needs, which is why patterns like
+  `JSON.parse(\`{{<step>.json_blob}}\`)` work cleanly.
+
+================================================================================
+2. OUTPUTS
+================================================================================
+
+formatted_data (type: string) — the value returned by the
+js_expression, serialized as a string. Objects and arrays are
+JSON-stringified; downstream actions that need structured access
+should JSON.parse the value, or use raw_to_structured_array if rows
+need to be expanded onto a new sheet.
+
+⚠ The output's *declared* type is always `string`, regardless of what
+the JS expression actually returns. A formatter that returns the
+number 42 still surfaces as a string-typed output. This matters
+whenever a downstream gate compares it numerically: both `run_if`
+and the dedicated `filter` action auto-derive the expected operator
+type from the upstream variable's stored type. Numeric operators
+(`greater than`, `less than`, `is between`, etc.) silently fail to
+fire when the upstream is a JS-formatter output, even though the
+runtime value parses as a number. See §4 KEY NOTES for the
+recommended pattern.
+
+Field-name asymmetry: the *input* field is named `data_formatter`
+(the JS expression itself), the *output* field is named
+`formatted_data` (the resolved value). Downstream references look
+like `{{format_data_using_js_expression_1.formatted_data}}` —
+referencing `.data_formatter` will surface as
+`unresolved_reference`.
+
+================================================================================
+3. HOW TO CONFIGURE
+================================================================================
+
+Configure Action body
+(PATCH /api/v1/workflows/{workflow_id}/sheets/{sheet_id}/actions/{action_instance_id}):
+
+{
+  "inputs": {
+    "data_formatter": "{{input.first_name}} + ' ' + {{input.last_name}}"
+  }
+}
+
+Pass any single JS expression as `data_formatter`. Reference upstream
+variables with the standard `{{...}}` syntax. For multi-line logic,
+wrap the body in an IIFE:
+
+{
+  "inputs": {
+    "data_formatter": "(() => { const raw = \"{{<upstream_action>.payload}}\" || \"{}\"; let data; try { data = JSON.parse(raw); } catch { return \"\"; } return data?.results?.[0]?.value || \"\"; })()"
+  }
+}
+
+For a pure Floqer-expression template (no JS, no IIFE), pass the
+template string directly as `data_formatter` — no surrounding JS
+quotes around the reference token:
+
+{
+  "inputs": {
+    "data_formatter": "{{<lookup>.record}}?.[\"Email 1 — LLM-generated opener\"]"
+  }
+}
+
+Floqer's template engine resolves the reference and evaluates the
+optional-chaining + bracket access at substitution time. See §1
+INPUTS for when to reach for this form vs. the JS expression form.
+
+================================================================================
+4. KEY NOTES
+================================================================================
+
+- Single-field action — everything happens through `data_formatter`.
+- Output is always a string. Return an object/array if you want
+  structured data downstream (it'll be JSON-stringified); JSON.parse
+  it on the consumer side, or follow with `raw_to_structured_array`
+  to expand rows.
+- Single-expression rule: top-level statements aren't allowed. Use an
+  IIFE — `(() => { ... })()` — for multi-line logic. Both line and
+  block comments work inside.
+- Variables interpolate as the field's LIVE JS value, not always a
+  string. The substitution replaces the entire `"{{<step>.field}}"`
+  token (quotes included) with the actual value. For string fields
+  the result is a JS string, so quoted patterns work. For
+  array/object fields the result is a live array/object — reference
+  them unquoted; wrapping them in quotes silently coerces to
+  `"[object Object]"` and breaks downstream `JSON.parse` or string
+  ops. Only `JSON.parse` if the stored value is genuinely a
+  JSON-encoded string (some CRM payloads). See §1 INPUTS for the
+  full side-by-side.
+
+- Coerce upstream refs to the type your code path needs — do not
+  trust the declared `output_format` type of the upstream. A
+  `llm_web_agents` field declared as `"string"` in its
+  `output_format` can come back as a JS number when the agent's
+  research surfaced a number-shaped value (a 4-digit year, a count,
+  a revenue figure); a field declared as `"number"` can come back
+  as a string with prose around it on harder rows. The variable
+  substitution then injects the LIVE value with its actual runtime
+  type — quotes around the ref are stripped, so `"{{ref}}".trim()`
+  crashes with `2021.trim is not a function` when the runtime value
+  is the number `2021`. The declared schema type is a hint, not a
+  contract; the agent's content-driven coercion can override it,
+  and the same field may drift across rows. Defensive pattern:
+
+    // Call string methods? Force to string first.
+    const founded = String("{{<agent>.founded_year}}" || "").trim();
+
+    // Do arithmetic? Force to number first.
+    const revenue = Number(String("{{<agent>.revenue_usd}}" || "0")) || 0;
+
+    // Parse JSON? Wrap in try/catch with a fallback.
+    let arr; try { arr = JSON.parse("{{<upstream>.list}}" || "[]"); }
+             catch { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+
+  The double-wrap `Number(String(...))` looks redundant but absorbs
+  both shapes — a string `"1500000"` and a number `1500000` both
+  collapse cleanly. Use it whenever the upstream is a web-agent
+  output or any source whose runtime type isn't guaranteed.
+
+- No top-level `await`. Async work belongs in `llm_web_agents`.
+
+- Output is typed `string` even when the JS returns a number or
+  boolean. Numeric operators (`greater than`, `less than`,
+  `is between`, etc.) on both `run_if` and the dedicated `filter`
+  action silently fail to fire on a JS-formatter output because
+  they evaluate against the declared type of the upstream variable,
+  not the runtime value. Workaround: have the formatter return a
+  string sentinel — `"yes"` / `"no"` for binary gates, `"smb"` /
+  `"large"` / `"skip"` for tiered branches — and gate via `is`. For
+  numeric *thresholds* downstream, insert a small classifier
+  formatter that wraps the comparison and converts it to a string:
+
+    (() => { const n = Number("{{<upstream>.formatted_data}}") || 0;
+             return n >= 30 ? "yes" : "no"; })()
+
+  Then gate via `<classifier_id>.formatted_data is "yes"` on
+  whichever primitive you're using (`filter` for shared gates,
+  `run_if` for per-action gates).
+
+- Backticks around a STRING field's ref silently inject literal
+  quotes. Empty-string upstreams become the 2-char string `""`
+  (truthy) instead of `""` (0-char, falsy); non-empty upstreams come
+  back with wrapping quotes embedded. Both break naïve string
+  handling. Use double-quote-wrap for string fields. Reserve
+  backticks for JSON-typed fields you're piping through
+  `JSON.parse` — the JSON-stringified injection is the input shape
+  `JSON.parse` needs. See §1 INPUTS for the side-by-side example.
+
+- The `{{...}}` substitution pass runs over the RAW `data_formatter`
+  string BEFORE eval and replaces ANY `{{token}}` it finds — including
+  a literal double-brace you meant to keep as text. Unknown tokens
+  resolve to `""` (same rule as a failed/missing ref, below), so a
+  formatter that does `const TOK = "{{FIRST_NAME}}"; tmpl.split(TOK).join(name)`
+  silently gets `TOK = ""` and jams `name` between every character.
+  Symptom: output like `"HXeXlXlXoX"` from `"Hello".split("").join("X")`.
+  The PATCH itself warns `unresolved_reference` for the stray token —
+  watch for it. Workaround: write any literal double-brace token with
+  unicode-escaped braces — `"{{FIRST_NAME}}"`
+  evaluates to the literal string `{{FIRST_NAME}}` at JS runtime but is
+  invisible to the resolver (no warning, length 13, survives intact).
+  Verified 2026-06-08.
+
+- Referencing a FAILED (or missing) upstream cell resolves to `""`,
+  NOT `unresolved_reference` or an error. A downstream
+  `"{{<A>.formatted_data}}"` where A's cell is `status: failed`
+  injects an empty string and the formula runs normally. This enables
+  OR-coalesce fallbacks: `"{{<A>.field}}" || "{{<B>.field}}" || ""`
+  falls through to B when A failed. (`unresolved_reference` is reserved
+  for a wrong field NAME — e.g. referencing `.data_formatter` instead
+  of `.formatted_data` — not for a real ref whose cell failed.) If you
+  need a failure to be LOUD (halt the chain), don't rely on the ref;
+  gate with an explicit `filter` / `run_if`. Verified 2026-06-08.
+
+- Chained JSON between formatters re-interprets escape sequences. If
+  one formatter emits JSON via `JSON.stringify(...)` and a
+  downstream formatter parses it via
+  `JSON.parse("{{<upstream>.formatted_data}}")`, escape sequences
+  inside the JSON (`\n`, `\t`, `\"`) are decoded by the JS string-
+  literal lexer at substitution time — BEFORE `JSON.parse` ever
+  runs. The downstream parse then rejects raw newlines inside string
+  values. Sentinel-encode problematic escapes upstream, decode after
+  parsing downstream. See §8.3 for the full pattern.
+
+- `responseId` / `responseStructureId` (the field-key markers on
+  every `structured_array` injection — CRM lookups, AI outputs,
+  raw_to_structured_array) are case-sensitive. `"Name"` and `"name"`
+  are different. Lowercase consistently when normalising, or match
+  what the source actually returns. See §8.1.
+
+- `localeCompare` and Unicode regex (`\p{...}`) need the `u` flag.
+  Easy to forget. Same applies to `\p{Emoji_Presentation}` and
+  `\p{Extended_Pictographic}`.
+
+- Trailing commas in object/array literals are fine in modern JS but
+  worth double-checking if a long formula starts erroring.
+
+- Empty-string vs null: Floqer treats empty strings and nulls
+  slightly differently in downstream filtering. Pick one convention
+  per workflow and stick with it (we usually go with `""`).
+
+- Authoring tip when PATCHing the formula via curl + shell heredoc:
+  bash heredocs swallow backslashes inside JS regex literals.
+  `/^https?:\/\//` becomes `/^https?:///` in the body the server
+  receives — invalid regex, action fails to configure. Three safe
+  workarounds:
+    1. Build the request body via Python's `json.dumps()` (or any
+       proper JSON encoder), which escapes correctly for the wire.
+    2. Use `new RegExp("^https?://")` in the formula — string-arg
+       constructor sidesteps slash + backslash escaping entirely.
+    3. Use `indexOf` / `substring` for label-finding when the
+       extraction doesn't strictly need a regex.
+  Not Floqer-specific (it's a shell quirk) but it bites formatter
+  authoring on the API surface enough to flag here.
+
+- Real newlines from upstream formatter outputs survive into a
+  downstream plain-string read. If formatter A returns
+  `lines.join('\n')` (real newlines), formatter B reading the value
+  via the double-quote form — `const s = "{{<A>.formatted_data}}";` —
+  gets a string with REAL newline characters (char code 10), not the
+  2-char literal `\n` sequence. Line-anchored regex works: a
+  `/^Domain:\t(.+)$/m` match against a `"Name:\tAcme\nDomain:\tacme.com"`
+  upstream pulls `acme.com` cleanly, and `/^/gm` fires once per line.
+  Tabs (`\t`) survive as real tabs the same way. No `replace(/\\n/g,
+  '\n')` restore step is needed on the plain-string read path.
+  (Verified 2026-06-08 — an earlier note here claimed downstream reads
+  surfaced literal 2-char `\n` and broke line anchors; that no longer
+  reproduces for the plain-string double-quote read.)
+  This is the plain-string read path (`"{{ref}}"`). The DIFFERENT case
+  — `JSON.parse` of a chained JSON-string field, where the JS string-
+  /template-literal lexer re-interprets `\n` / `\t` / `\"` into real
+  control characters BEFORE `JSON.parse` runs and the parse then
+  rejects them — still reproduces and is covered in §8.3 Chained JSON
+  between formatters. (Verified 2026-06-08: backtick
+  `JSON.parse(\`{{ref}}\`)` of `{"msg":"foo\nbar"}` throws "Bad control
+  character in string literal in JSON".)
+
+================================================================================
+5. WHERE IT FITS IN A WORKFLOW
+================================================================================
+
+Sits anywhere a downstream action needs a formatted string built from
+upstream variables.
+
+================================================================================
+6. WHEN TO USE
+================================================================================
+
+Use format_data_using_js_expression to run a JS expression over upstream
+variables and produce a clean value for downstream steps.
+
+  - Concatenate first_name and last_name into a full_name string.
+  - Slim CRM lookup outputs (HubSpot's ~450 properties per record,
+    Salesforce's 100+ per object) down to the handful of fields you
+    care about before feeding an LLM, deduping, or fanning out — see
+    §8.1 and the full multi-source recipe at
+    https://floqer.com/docs/use-case-detail/extract_data_from_crm.txt.
+  - Parse a stringified JSON blob coming off an upstream step and
+    pluck a nested value (e.g. `data?.results?.[0]?.value`) — see
+    §8.2.
+  - Normalize a LinkedIn URL or clean a contact name (strip emoji,
+    Unicode, casing) before deduping or matching downstream — see
+    §8.4 and §8.5.
+  - Filter, sort, or dedupe a JSON array before passing it on — see
+    §8.7.
+  - Write a small formula to massage a value before it's used.
+  - Aggregate, count, or score across the per-field outputs of an
+    upstream LLM action. LLMs — especially research-heavy models on
+    `llm_web_agents` like the Sonar handler — can drift between
+    per-field outputs and any self-reported `count` / `score` /
+    `summary` field in the same response. Have the model emit only
+    raw per-field signals (per-signal status + evidence) and use a
+    formatter to compute the derived numbers downstream. Robust
+    pattern for tier scoring, signal counts, weighted aggregates,
+    and threshold-based classifications.
+
+================================================================================
+7. WHEN NOT TO USE
+================================================================================
+
+Need LLM-driven generation, summarization, or reasoning
+  -> llm_models
+     (https://floqer.com/docs/action-detail/llm_models.txt)
+
+Need to expand an array into rows on a new sheet
+  -> push_data_to_sheet (after raw_to_structured_array if input is a raw_array)
+     (https://floqer.com/docs/action-detail/push_data_to_sheet.txt)
+
+================================================================================
+8. PATTERN LIBRARY
+================================================================================
+
+Working JS patterns for the most common formatter use cases. Each
+recipe is self-contained — read in isolation or as part of building
+a chain. All examples use API variable syntax (`{{<step>.field}}`);
+see §1 INPUTS for the rules on when to double-quote-wrap, backtick-
+wrap, or leave unquoted.
+
+--------------------------------------------------------------------------------
+8.1 Reading a structured_array (responseId pattern)
+--------------------------------------------------------------------------------
+
+Every multi-record `structured_array` output in Floqer — HubSpot's
+`records` from `hubspot_lookup_object`, Salesforce's `records_found`
+from `salesforce_lookup_record`, `raw_to_structured_array`'s `list`,
+and similar — injects into a JS expression as an object keyed by
+row index. Each value is an array of `{responseId,
+responseStructureId, value}` field triples:
+
+  {
+    "0": [{ responseId, responseStructureId, value }, …],   // row 0
+    "1": [{ responseId, responseStructureId, value }, …],   // row 1
+    …
+  }
+
+The canonical `rowsFromStructured` helper that converts this into
+a clean array of row objects — together with both contacts and
+accounts field projections, the field-discovery walkthrough, and
+the merge-across-CRMs pattern — lives in the dedicated use case:
+https://floqer.com/docs/use-case-detail/extract_data_from_crm.txt §5.4.
+
+Reach for that recipe whenever an LLM action will consume the data
+downstream. A raw HubSpot contact carries ~450 properties; a raw
+Salesforce Account carries 100+ standard fields plus every custom
+field. Project to 8–12 task-relevant fields BEFORE feeding the LLM —
+passing raw lookup output into a prompt is the single biggest cause
+of flat or hallucinated output in this pattern.
+
+Two gotchas to internalise:
+  - Use `responseStructureId` as the canonical column key, not
+    `responseId` — when it's available. On HubSpot's `records` and
+    Salesforce's `records_found`, `responseStructureId` is the
+    semantic column name (`firstname`, `email`).
+  - Always `.toLowerCase()` consistently. HubSpot returns lowercase
+    keys (`firstname`, `hs_object_id`); Salesforce returns
+    PascalCase (`Id`, `IsDeleted`). Lowercase at parse time so
+    downstream `c.firstname` works regardless of source.
+
+Apollo divergence — `responseStructureId` is opaque:
+  Apollo's `list_of_employees` from `get_employees_by_company_using_apollo`
+  injects with the same responseId-pattern SHAPE, but both
+  `responseId` AND `responseStructureId` are OPAQUE UUIDs — semantic
+  column names aren't preserved. The `rowsFromStructured` helper as
+  written returns `{<uuid>: <value>}` per row, which makes
+  `e.first_name` access undefined and silently drops every row at the
+  filter step.
+
+  Two ways to handle Apollo:
+
+    A. POSITION-BASED MAPPING (cheapest). Apollo's columns come back
+       in a stable, action-catalog-documented order. Read the inner
+       array by INDEX into a hardcoded `[first_name, last_name,
+       person_linkedin_url, person_title, …]` list. The full Apollo
+       column order is the one published in
+       `https://floqer.com/docs/action-catalog.txt` under
+       `get_employees_by_company_using_apollo` (Produces).
+
+    B. RE-DISCOVER VIA raw_to_structured_array. Pipe Apollo's
+       `list_of_employees` reference through `raw_to_structured_array`;
+       the resulting `list` has semantic column names you can address
+       via the standard `{{r2s.list.<col>}}` 3-segment refs in
+       column-mapping contexts (push_data_to_sheet, run_if), and via
+       position-based access in JS contexts. Adds the two-pass
+       discovery dance (see raw_to_structured_array action-detail).
+
+  Apollo isn't unique — assume any provider-backed structured_array
+  could surface opaque IDs. The columns metadata on
+  `GET .../actions/{aid}/outputs` only exposes semantic NAMES (it
+  doesn't surface the UUIDs the live injection actually uses), so
+  there's no clean map-lookup at runtime. When semantic keys fail,
+  fall back to position-based parsing per the Produces order in
+  action-catalog.txt.
+
+  Per-action UUID maps (captured 2026-05-25, stable across instances
+  on this Floqer tenant; re-probe if behaviour shifts):
+   - Apollo: see "JS EXTRACTION REFERENCE" in
+     https://floqer.com/docs/action-detail/get_employees_by_company_using_apollo.txt
+   - Sales Navigator: see "JS EXTRACTION REFERENCE" in
+     https://floqer.com/docs/action-detail/get_employees_by_company_using_sales_navigator.txt
+   - Floqer Native finder: uses semantic responseStructureIds — no
+     UUID map needed; see the JS EXTRACTION REFERENCE in
+     https://floqer.com/docs/action-detail/get_employees_by_company_using_floqer_native.txt
+
+3-segment refs (`{{<lookup>.records.<column>}}` /
+`{{<lookup>.records_found.<column>}}`) are NOT valid here — they
+substitute as empty strings inside a `data_formatter` formula. They
+only work in column-mapping contexts (`push_data_to_sheet`'s
+`choose_columns_to_send_to`, `run_if` scoped iteration).
+
+Field extraction FROM a JS formatter's stringified-object output:
+  If your picker JS returns an object (which the formatter
+  JSON-stringifies for storage), downstream consumers should use the
+  pure Floqer-expression template form (§1 INPUTS mode 1), NOT JS +
+  JSON.parse:
+
+    data_formatter: {{<picker>.formatted_data}}?.first_name
+
+  Don't try to JSON.parse a `"{{<picker>.formatted_data}}"` reference
+  inside JS — the double-quote substitution doesn't escape the
+  internal quotes that survive a JSON.stringify round-trip, so the
+  resulting JS string literal is malformed and JSON.parse throws
+  (silently, if you have a try/catch). The template form sidesteps
+  this entirely.
+
+--------------------------------------------------------------------------------
+8.2 JSON parsing
+--------------------------------------------------------------------------------
+
+Only needed when the upstream field's *stored* value is a
+JSON-encoded string (common with some CRM payloads — Salesforce
+records, Apollo employment history, raw HTTP responses). Native
+array/object output fields are already live values — reference them
+unquoted and skip `JSON.parse` entirely.
+
+When the source field is genuinely a stringified array/object,
+always wrap in `try/catch` or guard with a fallback:
+
+  (() => {
+    let data;
+    try {
+      data = JSON.parse(`{{<step>.payload}}` || "{}");
+    } catch {
+      return "";
+    }
+    return data?.results?.[0]?.value || "";
+  })()
+
+Shorthand version when you trust the source:
+
+  const items = JSON.parse(`{{<step>.items}}` || "[]");
+
+Backtick-wrap is the right form for JSON-typed inputs (the platform
+injects them as JSON-stringified text, which is exactly the input
+`JSON.parse` expects). Double-quote-wrap works too but is more
+fragile when the JSON contains characters the JS string-literal
+lexer would re-interpret — see §8.3.
+
+--------------------------------------------------------------------------------
+8.3 Chained JSON between formatters (escape-sequence handling)
+--------------------------------------------------------------------------------
+
+If one formatter emits JSON via `JSON.stringify(...)` and a
+downstream formatter consumes it via
+`JSON.parse("{{<upstream>.formatted_data}}")`, escape sequences
+inside the JSON (`\n`, `\t`, `\"`) are processed by the JS
+string-literal lexer at parse time — BEFORE `JSON.parse` ever runs.
+
+Concretely: upstream stores `{"msg":"foo\nbar"}` (where `\n` is two
+chars — backslash + n). When the downstream formatter substitutes
+that value into its source, the resulting code is
+`JSON.parse("{\"msg\":\"foo<real newline>bar\"}")`. The string
+literal lexer turned `\n` into a real newline BEFORE `JSON.parse`
+saw it, and JSON rejects raw newlines inside string values. Same
+trap with `\t`, `\"`, `\\`, and `${...}` inside backticks.
+
+This is intentional. Floqer substitutes the field's stored value
+into the formula as raw characters, not as a pre-encoded JS string
+literal — that's what keeps array/object substitution lossless (you
+can splice a live array straight into an expression without it being
+stringified-and-re-parsed).
+
+When the upstream JSON might contain those sequences inside string
+values, sentinel-encode them before stringifying, then decode after
+parsing:
+
+  // Upstream — encode anything the JS lexer would otherwise re-interpret
+  return JSON.stringify({
+    ...payload,
+    message: payload.message.replace(/\n/g, "__NL__"),
+  });
+
+  // Downstream — parse first, then restore
+  JSON.parse("{{<upstream>.formatted_data}}").message.replace(/__NL__/g, "\n");
+
+Pick a sentinel the JS lexer won't recognize as an escape and that
+won't collide with your data — `__NL__`, `<<NL>>`, etc. Encode every
+problematic escape your data might contain, not just newlines.
+
+Alternative: don't chain JSON at all. Have each downstream consumer
+recompute its field independently from the same upstream source.
+Costs a bit of duplicated parsing but avoids the encoding step
+entirely.
+
+--------------------------------------------------------------------------------
+8.4 LinkedIn URL normalization
+--------------------------------------------------------------------------------
+
+LinkedIn profile URLs come in many surface forms — different sources
+emit `linkedin.com/in/janedoe`,
+`https://www.linkedin.com/in/janedoe/`,
+`https://uk.linkedin.com/in/janedoe?utm=...`, all pointing at the
+same person. Pre-dedupe / pre-comparison normalization is the only
+reliable way to catch them as one.
+
+Bare canonical form (preferred for dedupe / hashing):
+
+  (() => {
+    const url = "{{<upstream>.linkedin_url}}";
+    if (!url) return "";
+
+    return url
+      .toLowerCase()
+      .trim()
+      .replace(/^https?:\/\//, "")             // strip protocol
+      .replace(/^([a-z]{2}\.|www\.)/, "")      // strip www OR 2-letter country subdomain (uk., ch., de., ...)
+      .replace(/\?.*$/, "")                    // strip query string
+      .replace(/#.*$/, "")                     // strip fragment
+      .replace(/\/$/, "");                     // strip trailing slash
+  })()
+
+Output: `linkedin.com/in/janedoe`. Use this as the dedupe key for
+`auto_dedupe_rows`.
+
+Canonical HTTPS form (preferred when the URL stays user-visible):
+
+  (() => {
+    let url = "{{<upstream>.linkedin_url}}";
+    if (!url) return null;
+
+    // Add https:// if missing
+    if (!/^https?:\/\//.test(url)) {
+      url = "https://" + url;
+    }
+
+    // Remove query string
+    url = url.split("?")[0];
+
+    // Normalize country subdomain (uk., ch., de., ...) and bare
+    // linkedin.com to www.linkedin.com
+    return url.replace(/^https?:\/\/([a-z]{2}\.)?linkedin\.com/, "https://www.linkedin.com");
+  })()
+
+Output: `https://www.linkedin.com/in/janedoe`. Use this when the URL
+will be displayed in an outreach asset, written into a CRM record,
+or piped to an action whose downstream provider needs a
+fully-qualified URL (e.g.
+`personal_phone_number_by_linkedin_url_waterfall`).
+
+Why two forms: the bare form is cheaper to compare (no protocol/www
+noise) and is the right hash key for dedupe. The HTTPS form
+preserves display semantics. If you only do one, do the bare form
+for dedupe and let downstream consumers prepend `https://www.`
+themselves.
+
+--------------------------------------------------------------------------------
+8.5 Name cleaning (emoji, Unicode, capitalization)
+--------------------------------------------------------------------------------
+
+  (() => {
+    const raw = "{{<contact>.full_name}}";
+    if (!raw) return "";
+
+    return raw
+      // strip emoji
+      .replace(/\p{Emoji_Presentation}/gu, "")
+      .replace(/\p{Extended_Pictographic}/gu, "")
+      // strip credentials/suffixes in parens or after commas
+      .replace(/\s*\([^)]*\)/g, "")
+      .replace(/,.*$/, "")
+      // normalize accents
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      // collapse whitespace
+      .replace(/\s+/g, " ")
+      .trim()
+      // title case
+      .split(" ")
+      .map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : "")
+      .join(" ");
+  })()
+
+Adjust which strip rules you keep depending on whether you want to
+preserve credentials (MD, PhD) or drop them. The `gu` regex flag is
+required for the `\p{...}` Unicode property escapes — see §4 KEY
+NOTES.
+
+--------------------------------------------------------------------------------
+8.6 Employment date extraction with fuzzy company match
+--------------------------------------------------------------------------------
+
+  (() => {
+    const history = JSON.parse(`{{<apollo>.employment_history}}` || "[]");
+    const target  = "{{<account>.name}}";
+
+    if (!history.length || !target) return "";
+
+    // strip everything but alphanumerics, lowercase
+    const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const t = norm(target);
+
+    // bidirectional includes catches "Acme" vs "Acme Inc" vs "Acme Corporation"
+    const match = history.find(e => {
+      const c = norm(e.companyName || e.organization_name);
+      return c && (c.includes(t) || t.includes(c));
+    });
+
+    return match?.startDate || match?.start_date || "";
+  })()
+
+The bidirectional `includes` is what handles the messy reality of
+company names — "Acme" in CRM, "Acme, Inc." in Apollo, "Acme
+Corporation" in LinkedIn.
+
+--------------------------------------------------------------------------------
+8.7 Array filter / sort / dedupe
+--------------------------------------------------------------------------------
+
+  (() => {
+    const rows = JSON.parse(`{{<step>.rows}}` || "[]");
+
+    // filter
+    const filtered = rows.filter(r => r.status === "active" && r.score >= 70);
+
+    // sort (descending by score, then ascending by name)
+    filtered.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+    // dedupe by a key
+    const seen = new Set();
+    const unique = filtered.filter(r => {
+      const key = (r.email || "").toLowerCase().trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return unique;
+  })()
+
+For dedupe, the key choice matters — normalize before hashing
+(lowercase email, normalized LinkedIn URL per §8.4, etc.).
+
+--------------------------------------------------------------------------------
+8.8 Comments and long formulas
+--------------------------------------------------------------------------------
+
+Both line comments (`//`) and block comments (`/* ... */`) work
+inside an IIFE. Long, multi-line formulas work fine — there's no
+practical line limit we've hit. Use comments for readability:
+
+  (() => {
+    /*
+      Pulls the most recent employment entry that matches the target
+      account. Falls back to first entry if no match.
+    */
+
+    // 1. Parse inputs
+    const history = JSON.parse(`{{<apollo>.employment_history}}` || "[]");
+    const target  = "{{<account>.name}}";
+
+    // 2. Normalize for fuzzy matching
+    const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const t = norm(target);
+
+    // 3. Find match, fallback gracefully
+    const match = history.find(e => {
+      const c = norm(e.companyName);
+      return c && (c.includes(t) || t.includes(c));
+    });
+
+    return match?.startDate || history[0]?.startDate || "";
+  })()
+
+--------------------------------------------------------------------------------
+8.9 Defensive patterns
+--------------------------------------------------------------------------------
+
+A few habits that prevent the formatter from blowing up on bad data:
+
+- Default everything: `JSON.parse(\`{{<x>.y}}\` || "[]")`,
+  `arr || []`, `str || ""`
+- Optional chaining everywhere: `obj?.nested?.field?.value`
+- Wrap parsing in try/catch when the source is iffy
+- Return a sensible empty value (`""`, `[]`, `null`) rather than
+  letting an error propagate
+- Coerce types defensively for web-agent outputs:
+  `Number(String("{{<agent>.field}}") || "0")` (see §4 KEY NOTES for
+  the full type-coercion footgun)
+
+  (() => {
+    try {
+      const data = JSON.parse(`{{<step>.payload}}` || "{}");
+      return data?.user?.profile?.name?.trim() || "";
+    } catch {
+      return "";
+    }
+  })()
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-08.
+Full interactive reference: https://floqer.com/docs/reference
+Action catalog: https://floqer.com/docs/action-catalog.txt

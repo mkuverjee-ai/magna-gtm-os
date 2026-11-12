@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Magna GTM OS: keep the repo cloneable and key-free.
+#
+# Play folders carry lead CSVs and documents on purpose, so git can't police size
+# by pattern. This does it by actual bytes.
+#
+# Enabled by ./onboard via: git config core.hooksPath .githooks
+
+LIMIT=$((25 * 1024 * 1024))   # 25MB
+fail=0
+
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  size=$(wc -c < "$f" | tr -d ' ')
+  if [ "$size" -gt "$LIMIT" ]; then
+    mb=$((size / 1024 / 1024))
+    echo "  BLOCKED  $f is ${mb}MB (limit 25MB)"
+    fail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "$fail" = 1 ]; then
+  cat <<'MSG'
+
+  A file this large will make the repo painful for everyone who clones it.
+
+  If it's a raw provider export: keep it out and commit a trimmed version.
+    Rename it to *-raw.csv and it's ignored automatically.
+
+  If it's a deliverable that genuinely has to ship: put it in your shared
+  drive and reference the link in the play's PLAY.md.
+
+  To override for one commit:  git commit --no-verify
+MSG
+  exit 1
+fi
+
+# Second guard: never let a credential through.
+#
+# The patterns are assembled from fragments so this file does not match itself —
+# a literal 'xoxb-[0-9]{6,}' written here is, to grep, indistinguishable from a
+# real token. Scanning is also skipped for this hook and .gitignore, which
+# legitimately mention key shapes.
+X=$(printf 'xoxb'); A=$(printf 'sk-ant'); H=$(printf 'pat-na2')
+J=$(printf 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'); G=$(printf 'github_pat')
+PATTERN="${X}-[0-9]{8,}|${A}-[A-Za-z0-9_-]{30,}|${H}-[a-f0-9-]{30,}|${J}|${G}_[A-Za-z0-9_]{30,}"
+
+# Scan only ADDED TEXT lines. Binary files (PDFs, decks) produce no text lines
+# and must pass — an earlier version piped an empty scan through `grep -L`,
+# which prints "(standard input)" when nothing matches, so committing a PDF on
+# its own was blocked as a "leaked credential".
+hits=$(git diff --cached -U0 --no-color -- . ':(exclude).githooks/*' ':(exclude).gitignore' \
+       | grep -E '^\+[^+]' | grep -E "$PATTERN" || true)
+
+if [ -n "$hits" ]; then
+  echo "  BLOCKED  a staged change looks like it contains a live credential:"
+  echo "$hits" | cut -c1-100 | head -3 | sed 's/^/    /'
+  echo ""
+  echo "  Keys belong in ~/.magna-gtm-config or the api_keys table (python3 gtm.py set-key NAME), never in the repo."
+  echo "  Override (only if it's a false positive):  git commit --no-verify"
+  exit 1
+fi
+
+exit 0

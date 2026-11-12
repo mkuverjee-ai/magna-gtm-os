@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ICP → TAM Mapper input (icp.json)",
+  "description": "Authored by the research step. Two blocks: `matrix` drives the XLSX, `airk` drives the AI Ark TAM/SAM/SOM funnel.",
+  "type": "object",
+  "required": ["company_name", "matrix", "airk"],
+  "properties": {
+    "company_name": {"type": "string"},
+    "domain": {"type": "string"},
+    "key_signal_name": {"type": "string", "description": "Short label for the Key Qualifying Signal (used as a column header + scoring category)."},
+    "key_signal": {"type": "string", "description": "One sentence naming the Key Qualifying Signal AI Ark can't filter (goes in the Clay section of the breakdown)."},
+    "intent_signal": {"type": "string", "description": "One sentence naming intent signals."},
+    "clay_signals": {"type": "array", "items": {"type": "string"}, "description": "Extra bullets for the 'what AI Ark can't filter' section."},
+
+    "matrix": {
+      "type": "object",
+      "description": "Standard ICP Matrix format. Every cell is rich prose with SOURCE: citations. Bullets use \\n, paragraphs \\n\\n.",
+      "properties": {
+        "key_signal_name": {"type": "string"},
+        "account_level": {
+          "type": "array",
+          "description": "8 rows: LOCATION, EMPLOYEE COUNT, INDUSTRY, BUSINESS MODEL (KEY SIGNAL), TECH STACK, REVENUE, FUNDING/OWNERSHIP, INTENT.",
+          "items": {"type": "object", "required": ["category", "qualified", "prioritization"],
+            "properties": {"category": {"type": "string"}, "qualified": {"type": "string"}, "prioritization": {"type": "string"}}}
+        },
+        "prospect_level": {
+          "type": "array",
+          "description": "4 rows: SENIORITY, DEPARTMENT/JOB TITLE, LINKEDIN PROFILE KEYWORDS, LINKEDIN ACTIVITY SIGNALS.",
+          "items": {"type": "object", "properties": {"category": {"type": "string"}, "qualified": {"type": "string"}, "prioritization": {"type": "string"}}}
+        },
+        "persona_matrix": {
+          "type": "array",
+          "description": "5-6 personas. Challenges ↔ benefits must mirror 1:1.",
+          "items": {"type": "object",
+            "properties": {"persona": {"type": "string"}, "level": {"type": "string"}, "kpis": {"type": "string"},
+              "challenges": {"type": "string"}, "intent_signals": {"type": "string"}, "benefits": {"type": "string"}}}
+        },
+        "signal_scoring": {
+          "type": "object",
+          "description": "100-point model. Category rows carry max_points on their top tier; use {\"category\":\"SEPARATOR\"} rows between categories. Sum of max_points must equal 100.",
+          "properties": {
+            "title_row": {"type": "string"},
+            "categories": {"type": "array", "items": {"type": "object",
+              "properties": {"category": {"type": "string"}, "criteria": {"type": "string"},
+                "points": {}, "max_points": {}, "notes": {"type": "string"}}}},
+            "tier_thresholds": {"type": "array", "items": {"type": "object",
+              "properties": {"tier": {"type": "string"}, "points": {"type": "string"}, "treatment": {"type": "string"}}}}
+          }
+        },
+        "case_study_reference": {
+          "type": "object",
+          "properties": {
+            "case_studies": {"type": "array", "items": {"type": "object"}},
+            "dream_clients": {"type": "array", "items": {"type": "object"}},
+            "excluded": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      }
+    },
+
+    "airk": {
+      "type": "object",
+      "description": "AI Ark filter spec. Drives TAM (all geos/broad industry) → SAM (priority geos + core gate) → SOM (sweet-spot size).",
+      "required": ["icp_type", "geographies", "employee_min", "employee_max"],
+      "properties": {
+        "icp_type": {"enum": ["firmographic", "signal_defined", "hybrid"],
+          "description": "firmographic = clean industry defines it. signal_defined = no clean industry, defined by what they do (keyword only). hybrid = industry base + keyword gate (e.g. executive search inside Staffing & Recruiting)."},
+        "geographies": {"type": "array", "items": {"type": "string"}, "description": "Full country names — all target geos (TAM)."},
+        "priority_geographies": {"type": "array", "items": {"type": "string"}, "description": "Subset prioritized (SAM/SOM)."},
+        "industries": {"type": "array", "items": {"type": "string"}, "description": "AI Ark industry strings — broad set (TAM)."},
+        "priority_industries": {"type": "array", "items": {"type": "string"}, "description": "Core industry subset (SAM/SOM)."},
+        "keyword_terms": {"type": "array", "items": {"type": "string"}, "description": "The 'what they do' gate (hybrid/signal_defined). Lowercase short phrases."},
+        "keyword_exclude": {"type": "array", "items": {"type": "string"}, "description": "Disqualifier phrases."},
+        "employee_min": {"type": "integer"},
+        "employee_max": {"type": "integer"},
+        "sweet_spot": {"type": "array", "items": {"type": "integer"}, "description": "[min,max] best-fit size band (SOM)."},
+        "revenue_floor": {"type": ["integer", "null"], "description": "USD floor applied to SOM, or null."},
+        "personas": {
+          "type": "array",
+          "description": "Buyer personas counted within the SAM base.",
+          "items": {"type": "object", "required": ["label", "titles", "seniorities"],
+            "properties": {
+              "label": {"type": "string"},
+              "titles": {"type": "array", "items": {"type": "string"}, "description": "Plain title strings, no bare 'Founder' (that's a seniority)."},
+              "seniorities": {"type": "array", "items": {"enum": ["founder", "owner", "partner", "c_suite", "vp", "director", "head", "manager", "senior", "mid-level", "entry", "intern"]}},
+              "department": {"enum": ["SALES", "MARKETING", "ENGINEERING", "FINANCE", "HR", "OPERATIONS", "SUPPORT", "IT", "LEGAL", "PRODUCT", "DESIGN", "EXECUTIVE", "CONSULTING", "ACCOUNTING", "BUSINESS_DEVELOPMENT", "CUSTOMER_SUCCESS", "DATA", "RESEARCH"]}
+            }}
+        }
+      }
+    }
+  }
+}

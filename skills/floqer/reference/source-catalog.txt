@@ -1,0 +1,210 @@
+Floqer Source Catalog
+
+Find the right data source to pull records INTO Floqer.
+
+A source imports records from an external system (or a search/monitor) and
+makes them available to your workflows. Every source shares the same
+operations — preview, create, get data, sync to a workflow, pause/resume,
+and (where applicable) dynamic field options. See
+https://floqer.com/docs/llms-full.txt (DATA SOURCES) for the operation
+reference and https://floqer.com/docs/concepts.txt §10 for the mental model.
+
+Full body shape, filter-field catalogue, and an end-to-end walkthrough for
+any source: https://floqer.com/docs/source-detail/{source_id}.txt
+
+CONNECTION: sources marked "PREREQUISITE: <connection>" need a one-time OAuth
+setup by the user on the Floqer Connections page before preview/create/options
+will work (missing connection → 424). Sources with no PREREQUISITE need no
+connection.
+
+LIFECYCLE: "one-time" sources import once and stop (`max_count` caps size).
+"ongoing" sources keep importing on a schedule until `expiration_date`; pause
+or resume them with PATCH /api/v1/sources/{source_id}/status.
+
+================================================================================
+CRM IMPORTS
+================================================================================
+
+SOURCE_ID: import_from_hubspot
+NAME: Import from HubSpot
+CATEGORY: CRM | PREREQUISITE: hubspot | one-time or ongoing
+Pull HubSpot contacts, companies, or deals from a saved list or a filter expression.
+Body: import_mode (from_list|native_filters), object_type, properties, lists?, filters?, properties_metadata?; create adds name, pull_mode, schedule, expiration_date?, pull_existing?
+Options: hubspot_lists, hubspot_properties (context: object_type)
+
+SOURCE_ID: import_from_salesforce
+NAME: Import from Salesforce
+CATEGORY: CRM | PREREQUISITE: salesforce | one-time or ongoing
+Pull records of any Salesforce object (Contact, Lead, Account, custom objects) by object + optional filter.
+Body: object, properties, filters?, properties_metadata?; create adds name, pull_mode, schedule, expiration_date?, pull_existing?
+Options: salesforce_objects, salesforce_properties (context: salesforce_object)
+
+SOURCE_ID: import_from_pipedrive
+NAME: Import from Pipedrive
+CATEGORY: CRM | PREREQUISITE: pipedrive | one-time or ongoing
+Pull Pipedrive persons, organizations, or deals by object type + optional filters.
+Body: object_type, properties, properties_metadata?, filters?; create adds name, pull_mode, schedule, expiration_date?, pull_existing?
+Options: properties (set object_type in the body first)
+
+SOURCE_ID: import_from_google_sheets
+NAME: Import from Google Sheets
+CATEGORY: CRM | PREREQUISITE: googleSheets | one-time or ongoing
+Pull rows from a spreadsheet tab; active sources sync new rows in real time.
+Body: spreadsheet_id, sheet_name, import_existing_data?, trigger_column?; create adds name, pull_mode, expiration_date?
+Options: spreadsheet_id, sheet_name (context: spreadsheet_id)
+
+SOURCE_ID: import_from_snowflake
+NAME: Import from Snowflake
+CATEGORY: CRM | PREREQUISITE: snowflake | one-time or ongoing
+Pull the result rows of a SQL query against a warehouse/database/table.
+Body: sql_query, database, warehouse, table, role, schema?, external_id?; create adds name, pull_mode, schedule, expiration_date?, pull_existing?
+Options: warehouse, database, role, schema (context: database), table (context: database, schema)
+
+================================================================================
+FIRST-PARTY IMPORTS
+================================================================================
+
+SOURCE_ID: import_from_typeform
+NAME: Import from Typeform
+CATEGORY: First-party | PREREQUISITE: typeform | ongoing (form responses)
+Pull responses from a Typeform form and keep ingesting new submissions.
+Body: form_id, form_fields (field id → label map), name (create), pull_existing?
+Options: form_id, form_fields (context: form_id)
+
+SOURCE_ID: import_from_stripe
+NAME: Import from Stripe
+CATEGORY: First-party | PREREQUISITE: stripe | one-time or ongoing
+Pull Stripe entities — subscriptions, charges, invoices, customers, payment intents, refunds, disputes.
+Body: entities[] (subscription, charge, paid_invoice, failed_invoice, customer, payment_intent, refund, dispute), start_date?; create adds name, import_type (static|active), frequency (cron, active only), expiration_date? (active only)
+
+SOURCE_ID: import_from_fireflies
+NAME: Import from Fireflies
+CATEGORY: First-party | PREREQUISITE: FireFlies | one-time or ongoing
+Pull meeting transcripts, summaries, and action items from Fireflies.
+Body: entities[] (meeting_transcribed, meeting_summarized, action_item), start_date?; create adds name, import_type (static|active), frequency (cron, active only), expiration_date? (active only)
+
+SOURCE_ID: track_website_visitors
+NAME: Track Website Visitors
+CATEGORY: First-party | ongoing (tracking pixel)
+Identify the B2B companies visiting a website. Create returns a tracking pixel to embed on the site.
+Body: active_domain, name (create), expiration_date?
+Create returns pixel_id + pixel_script — embed pixel_script on the monitored domain so visits are recorded. Preview returns no rows (visitors are identified after the pixel is installed).
+
+SOURCE_ID: track_personal_website_visitors
+NAME: Track Personal Website Visitors
+CATEGORY: First-party | ongoing (tracking pixel)
+Identify the individual people visiting a personal site. Create returns a tracking pixel to embed.
+Body: active_domain, name (create)
+Create returns pixel_id + pixel_script — embed pixel_script on the monitored domain. Preview returns no rows.
+
+================================================================================
+ONGOING SIGNALS (MONITORS)
+================================================================================
+
+SOURCE_ID: track_linkedin_posts
+NAME: Track LinkedIn Posts
+CATEGORY: Signal | ongoing
+Monitor public LinkedIn posts matching a keyword, optionally by author title / content type.
+Body: keyword, current_title?, content_type? (VIDEO|IMAGE|JOB|LIVE_VIDEO|DOCUMENT|COLLABORATIVE_ARTICLE); create adds name, expiration_date (required), frequency? (days)
+
+SOURCE_ID: track_job_postings
+NAME: Track Job Postings
+CATEGORY: Signal | ongoing
+Monitor new job postings matching company + job filters.
+Body: filters (job/company filter object), start_date?; create adds name, expiration_date (required), max_count?
+
+SOURCE_ID: track_x_posts
+NAME: Track X Posts
+CATEGORY: Signal | ongoing
+Monitor X/Twitter posts matching search terms, with optional tweet filters.
+Body: search_terms, sort_by (Top|Latest), tweet filters (tweet_language, only_verified_users, minimum_retweets, …); create adds name, expiration_date (required), frequency? (days)
+
+================================================================================
+ONE-TIME SIGNALS
+================================================================================
+
+SOURCE_ID: extract_from_website
+NAME: Extract from Website
+CATEGORY: Signal | one-time
+Scrape a website and extract structured rows described by a natural-language prompt.
+Body: url, prompt, paginated?; create adds name
+
+SOURCE_ID: find_linkedin_post_reactors
+NAME: Find LinkedIn Post Reactors
+CATEGORY: Signal | one-time
+List the people who reacted to a company's recent LinkedIn posts.
+Body: company_linkedin_url, company_website?, max_recent_posts?; create adds name
+
+SOURCE_ID: search_x_tweets
+NAME: Search X Tweets
+CATEGORY: Signal | one-time
+One-shot search of X/Twitter posts matching search terms.
+Body: search_terms, sort_by (Top|Latest), max_tweets (required on create); create adds name
+
+================================================================================
+LIST BUILDING (one-time, no connection)
+================================================================================
+
+SOURCE_ID: find_companies
+NAME: Find Companies
+CATEGORY: List building | one-time
+Build a list of B2B companies by location, firmographic, industry, and technographic filters.
+Body: filters (≥1 key), max_count?, name (create) — see source-detail §5 for the filter catalogue
+Options: (none — filter values are fixed enumerations in source-detail)
+
+SOURCE_ID: find_people
+NAME: Find People
+CATEGORY: List building | one-time
+Build a list of B2B people by job, location, and company-context filters.
+Body: filters (≥1 key), max_count?, name (create)
+Options: (none)
+
+SOURCE_ID: find_companies_by_buying_intent
+NAME: Find Companies by Buying Intent
+CATEGORY: List building | one-time
+Build a list of companies showing buying intent on chosen topics.
+Body: filters (topics, topic_intent_level?, negate?), max_count?, name (create)
+
+SOURCE_ID: find_companies_by_tech_stack
+NAME: Find Companies by Tech Stack
+CATEGORY: List building | one-time
+Build a list of companies using a specific technology, optionally by country.
+Body: filters (tech [required], countries?, since?), max_count?, name (create)
+
+SOURCE_ID: find_companies_hiring
+NAME: Find Companies Hiring
+CATEGORY: List building | one-time
+Build a list of companies actively hiring, by company + job-posting filters.
+Body: filters (company / job / technology filter keys — unknown keys rejected), max_count?, name (create)
+
+SOURCE_ID: find_job_postings
+NAME: Find Job Postings
+CATEGORY: List building | one-time
+Build a list of job postings (and the companies hiring) by company + job filters.
+Body: filters (unknown keys rejected), max_count?, name (create)
+Options: company_technology_slug, job_technology_slug, industry_id
+
+SOURCE_ID: find_people_from_sales_navigator
+NAME: Find People from Sales Navigator
+CATEGORY: List building | one-time
+Build a people list from LinkedIn Sales Navigator filters or a saved search URL.
+Body: type (filters|sales_nav_url), filters[] or sales_nav_url, payloads?, max_count?, name (create)
+Options: location (context: search), company_headquarters (context: search)
+
+SOURCE_ID: find_companies_from_sales_navigator
+NAME: Find Companies from Sales Navigator
+CATEGORY: List building | one-time
+Build a company list from LinkedIn Sales Navigator filters, UI payloads, or a saved search URL.
+Body: type (filters|sales_nav_url), filters[] or payloads or sales_nav_url, max_count?, name (create)
+Options: company_headquarters (context: search)
+
+SOURCE_ID: search_local_businesses
+NAME: Search Local Businesses
+CATEGORY: List building | one-time
+Build a list of local businesses around a map location for a search term.
+Body: lat, lng, api_zoom, search_query, max_count?, name (create)
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-06-02.
+Full interactive reference: https://floqer.com/docs/reference

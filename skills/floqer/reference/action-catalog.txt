@@ -1,0 +1,567 @@
+Floqer Action Catalog
+
+Find the right action for your data.
+Match your data types to "Needs" to find compatible actions.
+Reference outputs in downstream actions with {{action_instance_id.field_name}}
+or, for structured_array columns, {{action_instance_id.list_name.column_name}}.
+
+Full details for any action: https://floqer.com/docs/action-detail/{action_id}.txt
+
+Types: scalars (string, url, email, number, boolean) for inputs and outputs; nested types (raw_array — unstructured array, json — unstructured object, structured_array — typed list of records) for action outputs only. See https://floqer.com/docs/concepts.txt section 4 for details.
+
+Connection-required actions are flagged "PREREQUISITE: <Provider>" — those need a one-time OAuth setup by the user on the Floqer Connections page before the action will run. See the action-detail file for the exact provider.
+
+================================================================================
+
+ACTION_ID: llm_models
+NAME: AI Generate Content
+CATEGORY: AI | CREDITS: varies by model (see action-detail)
+Generate prompt-based text using OpenAI / Anthropic / Google / Groq / DeepSeek / Perplexity LLMs.
+Needs: model (string), prompt (string), output_format? (string)
+Produces: generated_content (string), reasoning (string), usage (json)
+
+================================================================================
+
+ACTION_ID: llm_web_agents
+NAME: Web Agent
+CATEGORY: AI | CREDITS: 0.2-5 varies by model
+Run a prompt-driven research agent against the live web with citations.
+Needs: select_a_model (string), mission (string), output_format (raw_array)
+Produces: result (string), reasoning (string), web_citations (raw_array)
+
+================================================================================
+
+ACTION_ID: ai_web_navigator
+NAME: Web Pilot
+CATEGORY: research | CREDITS: 0
+Navigate the browser step-by-step (clicks, forms, multi-page navigation).
+Needs: task (string)
+Produces: final_result (string), steps_taken (jsonArray), time_taken_seconds (number), run_id (string)
+
+================================================================================
+
+ACTION_ID: company_enrich_using_people_data_labs
+NAME: People Data Labs: Company Enrich
+CATEGORY: Account Level Enrichment | CREDITS: 5
+Enrich a company with PDL firmographics, workforce trends, funding history, and corporate structure.
+Needs: company_name? (string), company_domain? (string), social_media_profile_url? (url)
+Produces: company_id, company_name, company_description, company_website, company_headline, company_industries, company_region, country, country_code, employee_headcount, employee_headcount_range, employee_headcount_by_country (raw_array), employee_headcount_by_month (raw_array), employee_growth_rate (raw_array), employee_churn_rate (raw_array), employee_count_by_job_role (raw_array), average_employee_tenure (number), average_tenure_by_role (raw_array), average_tenure_by_job_level (raw_array), gross_additions_by_month (raw_array), gross_departures_by_month (raw_array), yearly_employee_growth_rate_by_job_role (raw_array), funding_stages (raw_array), current_funding_stage, company_funding (number), number_of_funding_rounds (number), latest_funding_date, estimated_revenue, company_headquarters (raw_array), company_postal_zip_code, social_profiles (raw_array), company_linkedin_id, company_linkedin_url, company_linkedin_slug, company_linkedin_follower_count (number), company_twitter_url, company_facebook_url, company_stock_ticker, mic, sic_industry_classification (raw_array), naics_industry_classification (raw_array), naics_code, naics_insustry, gics_sector, alternate_company_names (raw_array), alternate_company_websites (raw_array), date_founded (number), company_type, company_categories (raw_array), company_display_name
+
+================================================================================
+
+ACTION_ID: floqer_company_firmographics
+NAME: Floqer: Company Enrich
+CATEGORY: Account Level Enrichment | CREDITS: 1
+Standard firmographics in a single call — name, business description, HQ + per-country locations, NAICS/SIC/LinkedIn industry, employee range, revenue range, founded year, company type, stock ticker. Cheapest source of a revenue range in the catalog (PDL covers the same firmographics at 5x the cost but adds workforce dynamics + corporate structure). ⚠ Coverage skews US/UK — for small or non-US-or-UK companies (e.g. Estonian startups, sub-50-headcount European fintechs) several scalar fields can come back empty and `revenue_range` often falls back to a default band; cross-check revenue against a web agent or PDL when the gate decision must be reliable. See action-detail KEY NOTES.
+Needs: company_name? (string), company_domain? (string), company_linkedin_url? (url), company_crunchbase_url? (url), country_code? (string)
+Produces: business_id, company_name, business_description, website, country, region_state, city, street_address, zip_code, naics_code, naics_description, sic_code, sic_description, stock_ticker, employee_range, revenue_range, linkedin_industry, company_linkedin_url, company_logo, company_locations (raw_array), hq_location, hq_country, year_founded, company_type
+
+================================================================================
+
+ACTION_ID: store_leads_enrich_company
+NAME: StoreLeads: Company Enrich
+CATEGORY: Account Level Enrichment | CREDITS: 0
+Enrich an e-commerce company by store URL — platform, traffic, sales, products, technologies.
+Needs: company_domain (url)
+Produces: merchant_name, company_description, tld1, store_locator_page, email_addresses (raw_array), instagram_handle (raw_array), linkedin_profile (raw_array), categories (raw_array), city, administrative_area_level_1, country_code, platform_type, features (raw_array), technologies (raw_array), language_code, operational_state, currency_code, avg_price_usd (number), product_count (number), vendor_count (number), estimated_visits (number), estimated_sales (number), employee_headcount (number), rank_percentile (number), trustpilot_reviews (number), trustpilot_average_rating (number), last_updated_at
+
+================================================================================
+
+ACTION_ID: company_headcount_distribution_by_country
+NAME: Company Headcount by Country
+CATEGORY: Account Level Enrichment | CREDITS: 1
+Total headcount + per-country headcount breakdown.
+Needs: company_identifier (string)
+Produces: company_headcount (number), company_headcount_by_country (raw_array)
+
+================================================================================
+
+ACTION_ID: company_headcount_distribution_by_job_role
+NAME: Company Headcount Distribution by Job Role
+CATEGORY: Account Level Enrichment | CREDITS: 1
+Percentage of workforce by job role + quarter-over-quarter change in headcount per role; most recent quarter.
+Needs: company_name? (string), company_domain? (url), company_linkedin_url? (url), company_crunchbase_url? (url), country_code? (string)
+Produces: quarters (string), profiles_found_per_quarter (number), perc_engineering / perc_sales / perc_marketing / perc_operations / perc_finance / perc_hr / perc_customer_service / perc_design / perc_education / perc_legal / perc_media / perc_pr / perc_health / perc_trades / perc_real_estate (number), change_in_engineering / change_in_sales / change_in_marketing / change_in_operations / change_in_finance / change_in_hr / change_in_customer_service / change_in_design / change_in_education / change_in_legal / change_in_media / change_in_pr / change_in_health / change_in_trades / change_in_real_estate (number)
+
+================================================================================
+
+ACTION_ID: company_tech_stack_enrichment_from_builtwith
+NAME: BuiltWith: Enrich Company Tech Stack
+CATEGORY: Account Level Enrichment | CREDITS: 2
+Detect technologies a website is built with via BuiltWith — web-crawler-based, broadest raw coverage of the three providers (often 500–800+ techs per company), surfaces historical FirstDetected/LastDetected dates, but many results are inferred (lower precision than TheirStack).
+Needs: company_domain (url), keyword_or_category_filter? (string), last_detected_date_filter? (string)
+Produces: all_technologies (json), all_technologies_csv (string), technology_count (number), matching_keywords_found (string), total_matching_technologies_found (number), company_meta (json — incidental firmographics; not the recommended source for firmographic data, see action-detail)
+
+================================================================================
+
+ACTION_ID: company_tech_stack_enrichment_using_their_stack
+NAME: TheirStack: Enrich Company Tech Stack
+CATEGORY: Account Level Enrichment | CREDITS: 0.3
+Detect technologies a company uses via TheirStack — solid technographic detection plus signal pulled from the company's job postings (a JD requiring "Salesforce admin experience" is hard evidence they run Salesforce). More precise than BuiltWith but narrower coverage; no historical detection dates, no department buckets.
+Needs: company_domain (url)
+Produces: all_technologies (raw_array), all_technologies_csv (string)
+
+================================================================================
+
+ACTION_ID: company_tech_stack_floqer
+NAME: Floqer: Company Technographics
+CATEGORY: Account Level Enrichment | CREDITS: 1
+Departmental tech-stack breakdown (sales / marketing / HR / IT / engineering / etc.) — pre-bucketed output from a third-party provider (despite the `_floqer` name). Lower raw coverage than BuiltWith or TheirStack; sometimes returns "No data found" for small/new companies. Use when departmental bucketing is the primary need.
+Needs: company_name? (string), company_domain? (url), company_linkedin_url? (url)
+Produces: full_tech_stack (raw_array), testing_qa, sales, programming_languages_frameworks, productivity_operations, product_design, platform_storage, operations_software, operations_management, marketing, it_security, it_management, hr, health_tech, finance_accounting, ecommerce, customer_management, computer_networks, collaboration, bi_analytics — all (raw_array) per department
+
+================================================================================
+
+ACTION_ID: enrich_company_linkedin_profile
+NAME: Scrape Company LinkedIn Profile
+CATEGORY: Account Level Enrichment | CREDITS: 0.2
+Scrape a company's LinkedIn /company/<handle> page for firmographic data.
+Needs: company_linkedin_url (url)
+Produces: company_name (string), company_headline (string), company_description (string), company_website (url), employee_headcount (number), no_of_followers (number), specialities (raw_array), other_locations (raw_array), similar_companies (raw_array), company_linkedin_url (url), company_industries, hq_country, hq_region, hq_city, postal_code, hq_address_line1, hq_address_line_2, is_primary, company_type, company_image_url, founded_year
+
+================================================================================
+
+ACTION_ID: get_employees_by_company_using_floqer_native
+NAME: Floqer: Find Employees at Company
+CATEGORY: Account Level Enrichment | CREDITS: 0.005 per employee
+Find employees at a company by domain or LinkedIn URL.
+Needs: company_identifier (string), number_of_employees (string), job_title? (string — comma-separated list of titles, OR-matched as a contains filter), job_level? (string-array), country_code? (string-array)
+Produces: no_of_employees (number), employees (structured_array: first_name, last_name, full_name, linkedin_url, company_name, company_website, company_linkedin, job_title, country_name)
+
+================================================================================
+
+ACTION_ID: get_employees_by_company_using_apollo
+NAME: Apollo: Find Employees at Company
+CATEGORY: Account Level Enrichment | CREDITS: 1.4 per 100 employees (min 1.4 per call)
+Find employees at a company via Apollo.
+Needs: company_domain (url), apollo_api_key? (string), number_of_employees? (string), titles_of_the_person? (string — comma-separated list of titles), keywords? (string), locations? (string), seniorities? (string-array)
+Produces: no_of_employees (number), list_of_employees (structured_array: first_name, last_name, person_linkedin_url, person_title, person_headline, person_twitter_url, person_facebook_url, person_github_url, employement_history, departments, seniority, functions, phone_numbers, city, state, country, company_name, company_domain)
+
+================================================================================
+
+ACTION_ID: get_employees_by_company_using_sales_navigator
+NAME: Sales Nav: Find Employees at Company
+CATEGORY: Account Level Enrichment | CREDITS: 25 per page of 25 employees
+Find employees at a company via LinkedIn Sales Navigator.
+Needs: number_of_pages (string), company_linkedin_url? (string), current_title? (string), past_title? (string), company_headquarters? (string), region? (string), seniority_level? (string-array), years_of_experience? (string-array), function? (string), past_company? (string), company_type? (string-array), exclude_current_company? (string), exclude_current_title? (string), exclude_past_title? (string), exclude_company_headquarters? (string), exclude_region? (string), exclude_seniority_level? (string-array), exclude_function? (string), exclude_past_companies? (string), keywords? (string), years_at_current_company? (string-array), years_in_current_position? (string-array)
+Produces: no_of_employees (number), list_of_employees (structured_array: person_name, person_location, person_linkedin_url, default_position_title, default_position_company_linkedin_id, default_position_is_decision_maker, person_flagship_linkedin_url, person_linkedin_picture, person_headline, person_linkedin_summary, person_linkedin_connections, person_skills, employer, education_background, person_websites, person_twitter_handle, person_languages, person_pronoun, person_title)
+
+================================================================================
+
+ACTION_ID: website_traffic_using_semrush
+NAME: Business Website Traffic
+CATEGORY: Account Level Enrichment | CREDITS: 1
+Monthly Semrush traffic profile (visits / channels / device split / global rank).
+Needs: company_name? (string), company_domain? (url), company_linkedin_url? (url), company_crunchbase_url? (url), country_code? (string), month_period? (string)
+Produces: domain, rank (number), month, accuracy, total_visits (number), total_unique_users (number), bounced_visits (number), bounce_rate (number), pages_per_visit (number), time_on_site (number), direct, search, search_organic, referral, paid, display_ad, mail, social_paid, unknown_channel, desktop_share, mobile_share, mobile_visits, mobile_users, mobile_hits, mobile_pages_per_visit, mobile_bounce_rate (all numeric), device_type, channel
+
+================================================================================
+
+ACTION_ID: enrich_person_linkedin_profile
+NAME: Scrape Person's LinkedIn Profile
+CATEGORY: Person Level Enrichment | CREDITS: 0.2
+Scrape a person's LinkedIn /in/<handle> profile.
+Needs: linkedin_url (url)
+Produces: first_name, last_name, person_linkedin_title, person_linkedin_summary, person_linkedin_connections (number), person_linkedin_followers (number), country, city, state, skills (raw_array), experiences (raw_array), education (raw_array), accomplishments (raw_array), volunteer_work (raw_array), certifications (raw_array), birth_date, person_linkedin_profile_picture, person_linkedin_url, person_current_job_title, current_company_name, current_company_linkedin_url, current_company_domain
+
+================================================================================
+
+ACTION_ID: person_enrich_by_floqer
+NAME: Floqer: Person contact enrich
+CATEGORY: Person Level Enrichment | CREDITS: 1
+Resolve a person's emails and phone numbers from name+company / email / LinkedIn URL.
+Needs: person_linkedin_url? (url), person_email? (email), person_phone_number? (string), person_full_name? (string), company_name? (string)
+Produces: professional_email (email), phone_number (string), other_emails (raw_array), other_phone_numbers (raw_array)
+
+================================================================================
+
+ACTION_ID: person_enrich_using_apollo
+NAME: Apollo: Person Enrich
+CATEGORY: Person Level Enrichment | CREDITS: 1.4-8.4
+Apollo person + company contact data (email, phone, employment history, firmographics).
+Needs: first_name? (string), last_name? (string), full_name? (string), email? (email), company_name? (string), company_domain? (url), linkedin_url? (url), unlock_phone_numbers? (string)
+Produces: first_name, last_name, person_name, person_linkedin_url, person_title, person_city, person_state, person_country, person_twitter_url, person_github_url, person_facebook_url, person_headline, company_id, person_contact_info (raw_array), company (raw_array), employment_history (raw_array), departments (raw_array), sub_departments (raw_array), functions (raw_array), seniority, revealed_for_current_team, phone_numbers (raw_array)
+
+================================================================================
+
+ACTION_ID: person_enrich_using_people_data_labs
+NAME: People Data Labs: Person Enrich
+CATEGORY: Person Level Enrichment | CREDITS: 5
+PDL person enrichment with broad social-URL coverage and likely-email candidates.
+Needs: email? (email), social_media_profile_url? (url), person_name? (string), company_name? (string)
+Produces: id, person_names (raw_array), person_emails (string), person_linkedin_url, person_facebook_url, person_twitter_url (raw_array), skills (raw_array), primary (raw_array), person_social_profiles (raw_array), education (raw_array), interests (raw_array), locations (raw_array), birth_date, experience (raw_array), person_industries (raw_array), confidence_score (number), person_gmail_domains (raw_array), person_phone_numbers (raw_array), birth_date_fuzzy, street_addresses (raw_array), likely_work_emails (raw_array)
+
+================================================================================
+
+ACTION_ID: person_linkedin_url_by_email
+NAME: Find LinkedIn URL using Email
+CATEGORY: Person Level Enrichment | CREDITS: 0.1-5
+Reverse-resolve a LinkedIn URL from an email (work or personal).
+Needs: email (email)
+Produces: linkedin_url (url)
+
+================================================================================
+
+ACTION_ID: person_phone_number_verification_using_real_phone
+NAME: Real Phone : Phone Number Verification
+CATEGORY: Person Level Enrichment | CREDITS: 2
+Verify a North American (US or Canadian) phone number for dialer compliance (DNC / DMA / litigator / IsCell). Backend handles country-code/separator normalization — pass `+1...`, `1-...`, or bare 10 digits.
+Needs: phone_number (string)
+Produces: phone_verification_status, response_code, response_message (raw_array), national_dnc, state_dnc, dma, litigator, iscell, id
+
+================================================================================
+
+ACTION_ID: person_work_email_verification_by_allegrow
+NAME: Allegrow: Email Verification
+CATEGORY: Person Level Enrichment | CREDITS: 0.1
+Email validity check via Allegrow.
+Needs: email (email)
+Produces: email_verification_status (string)
+
+================================================================================
+
+ACTION_ID: person_work_email_verification_by_million_verifier
+NAME: Million Verifier: Email Verification
+CATEGORY: Person Level Enrichment | CREDITS: 0.1
+Email validity check via MillionVerifier.
+Needs: email (email)
+Produces: email_verification_status (string)
+
+================================================================================
+
+ACTION_ID: person_work_email_verification_by_neverbounce
+NAME: NeverBounce: Email Verification
+CATEGORY: Person Level Enrichment | CREDITS: 1
+Email validity check via NeverBounce.
+Needs: email (email)
+Produces: email_verification_status (string)
+
+================================================================================
+
+ACTION_ID: person_work_email_verification_by_zerobounce
+NAME: ZeroBounce: Email Verification
+CATEGORY: Person Level Enrichment | CREDITS: 1
+Email validity check via ZeroBounce.
+Needs: email (email)
+Produces: email_verification_status (string)
+
+================================================================================
+
+ACTION_ID: person_work_email_waterfall
+NAME: Find Work Email
+CATEGORY: Person Level Enrichment | CREDITS: 0.1-10
+Resolve a prospect's work email from LinkedIn URL OR full_name+company_domain.
+Needs: full_name? (string), linkedin_url? (url), company_domain? (url), email_validation? (string)
+Produces: work_email (email)
+
+================================================================================
+
+ACTION_ID: personal_email_by_linkedin_url_waterfall
+NAME: Find Personal Email using LinkedIn URL
+CATEGORY: Person Level Enrichment | CREDITS: 1-5
+Resolve a personal (Gmail / Yahoo / iCloud / Outlook) email from a LinkedIn URL.
+Needs: linkedin_url (url) — must be flagship form
+Produces: personal_email (email)
+
+================================================================================
+
+ACTION_ID: personal_phone_number_by_linkedin_url_waterfall
+NAME: Find Verified Phone Number using LinkedIn URL
+CATEGORY: Person Level Enrichment | CREDITS: 0.1-23
+Resolve a verified mobile phone number from a LinkedIn URL.
+Needs: linkedin_url (url) — must be flagship form
+Produces: phone_number (string)
+
+================================================================================
+
+ACTION_ID: hubspot_create_object
+NAME: HubSpot: Create Object
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: HubSpot
+Create a record in HubSpot (contact / company / deal / lead).
+Needs: choose_hubspot_object (dropdown), hubspot_object_properties? (jsonArray)
+Produces: id, properties (json), created_at, update_at, archived
+
+================================================================================
+
+ACTION_ID: hubspot_lookup_object
+NAME: Hubspot: Lookup Record
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: HubSpot
+Lookup HubSpot Contacts or Companies by filter properties.
+Needs: hubspot_object (dropdown), operator? (dropdown), limit? (number), add_properties_and_their_values? (jsonArray)
+Produces: records (structured_array — every standard HubSpot property on the chosen object surfaces as a column; use Get Action Field Options on `add_properties_and_their_values` to list them), total_records (number)
+
+================================================================================
+
+ACTION_ID: hubspot_update_object
+NAME: HubSpot: Update Object
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: HubSpot
+Update a HubSpot record by HubSpot ID.
+Needs: choose_hubspot_object (dropdown), hubspot_object_id (string), hubspot_object_properties? (jsonArray)
+Produces: id, properties (json), created_at, update_at, archived
+
+================================================================================
+
+ACTION_ID: hubspot_upsert_object
+NAME: Hubspot: Upsert Object
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: HubSpot
+Create-or-update a HubSpot record keyed on a unique property.
+Needs: choose_hubspot_object (dropdown), hubspot_unique_property (dropdown), hubspot_object_properties? (jsonArray)
+Produces: (none — follow with hubspot_lookup_object if you need the new ID)
+
+================================================================================
+
+ACTION_ID: salesforce_create_record
+NAME: Salesforce: Create a Record
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: Salesforce
+Insert a record into any Salesforce object.
+Needs: salesforce_object (dropdown), add_fields_and_their_values? (jsonArray), run_salesforce_assignment_rules? (boolean)
+Produces: record_id, account_url
+
+================================================================================
+
+ACTION_ID: salesforce_lookup_record
+NAME: Salesforce: Lookup Record
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: Salesforce
+Find Salesforce records by filter criteria.
+Needs: salesforce_object (dropdown), add_fields_and_their_values (jsonArray), search_operator (dropdown: AND | OR), exact_match? (boolean)
+Produces: records_found (structured_array), record_id, phonenumber, websites, owner_name, owner_id, account_url
+
+================================================================================
+
+ACTION_ID: salesforce_update_record
+NAME: Salesforce: Update a Record
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: Salesforce
+Update a Salesforce record by record ID.
+Needs: record_id (string), salesforce_object (dropdown), add_fields_and_their_values (jsonArray), ignore_empty_values? (boolean), run_salesforce_assignment_rules? (boolean)
+Produces: record_id, account_url
+
+================================================================================
+
+ACTION_ID: salesforce_upsert_record
+NAME: Salesforce: Upsert Record
+CATEGORY: CRM | CREDITS: 0  | PREREQUISITE: Salesforce
+Create-or-update a Salesforce record by external ID.
+Needs: salesforce_object (dropdown), salesforce_external_id_field (dropdown), add_fields_and_their_values (jsonArray), force_update_on_collision? (boolean), ignore_empty_values? (boolean), run_salesforce_assignment_rules? (boolean)
+Produces: record_id, operation_type, account_url
+
+================================================================================
+
+ACTION_ID: get_fireflies_meeting_transcription
+NAME: Fireflies: Meeting Transcription Lookup
+CATEGORY: research | CREDITS: 0  | PREREQUISITE: Fireflies
+Pull a meeting transcript and attendee list from Fireflies (typically webhook-triggered).
+Needs: transcribe_id (string)
+Produces: meeting_notes (string), meeting_participants (string)
+
+================================================================================
+
+ACTION_ID: google_sheet_add_data
+NAME: Google Sheets: Add Data
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Google Sheets
+Append a row to a Google Sheet.
+Needs: spreadsheets (dropdown), select_sheet? (dropdown), value_input_option? (dropdown: RAW | USER_ENTERED), add_data_to_columns (jsonArray)
+Produces: (none)
+
+================================================================================
+
+ACTION_ID: google_sheet_upsert_row
+NAME: Google Sheets: Upsert Data
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Google Sheets
+Upsert a row into a Google Sheet keyed on a column.
+Needs: spreadsheets (dropdown), select_sheet? (dropdown), value_input_option? (dropdown), select_lookup_column (dropdown), add_data_to_columns (jsonArray)
+Produces: (none)
+
+================================================================================
+
+ACTION_ID: google_sheets_lookup_rows
+NAME: Google Sheets: Get Data
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Google Sheets
+Read filtered rows from a Google Sheet.
+Needs: spreadsheets (dropdown), sheet_name (dropdown), search_criteria? (criteriaArray), limit_rows? (number)
+Produces: values (raw_array), major_dimension, range, total_rows (number), returned_rows (number)
+
+================================================================================
+
+ACTION_ID: heyreach_add_leads_to_campaign
+NAME: HeyReach: Add Leads to a Campaign
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: HeyReach
+Enroll a lead in a HeyReach LinkedIn campaign.
+Needs: campaign_id (dropdown), linkedin_url (url), first_name? (string), last_name? (string), email? (email), company_name? (string), location? (string), summary? (string), position? (string), about? (string), custom_fields? (jsonArray)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: instantly_add_to_campaign
+NAME: Instantly: Add Leads to a Campaign
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Instantly
+Enroll a lead in an Instantly cold-email campaign.
+Needs: campaign_id (string — resolve via dynamic options), email (email), first_name? (string), last_name? (string), company_name? (string), personalization? (string), custom_variables? (jsonArray), skip_if_lead_is_in_workspace? (boolean)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: la_growth_machine_add_to_audience
+NAME: LaGrowth Machine: Add Leads to a Audience
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: LaGrowthMachine
+Enroll a lead in a LaGrowthMachine audience.
+Needs: audience (dropdown), linkedin_url? (url), first_name? (string), last_name? (string), company_name? (string), company_domain? (url), gender? (dropdown), bio? (string), job_title? (string), twitter? (string), email? (email), phone? (string), custom_attribute_1..custom_attribute_10? (string), location? (string), personal_email? (email)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: lemlist_add_lead_to_campaign
+NAME: Lemlist: Add leads to a campaign
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Lemlist
+Enroll a lead in a Lemlist campaign.
+Needs: campaigns (dropdown), email (email), first_name? (string), last_name? (string), company_name? (string), ice_breaker_text? (string), phone_number? (string), picture_url? (imageUrl), linkedin_url? (url), company_domain? (url), custom_variables? (jsonArray)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: reply_add_and_push_to_campaign
+NAME: Reply: Add and Push Contact to Campaign
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Reply.io
+Enroll a contact in a Reply.io campaign.
+Needs: campaign_id (dropdown), email (email), first_name (string), last_name? (string), company_name? (string), city? (string), state? (string), country? (string), time_zone? (string), title? (string), phone? (string), linkedin_url? (url), custom_variables? (jsonArray)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: smartleads_add_to_campaign
+NAME: Smartlead: Add Leads to a Campaign
+CATEGORY: Integration | CREDITS: 0  | PREREQUISITE: Smartlead
+Enroll a lead in a Smartlead campaign.
+Needs: campaign_id (dropdown), email (email), ignore_global_block_list? (boolean), ignore_unsubsribe_list? (boolean), ignore_duplicate_leads_in_other_campaigns? (boolean), first_name? (string), last_name? (string), company_name? (string), phone_number? (string), website? (url), location? (string), linkedin_url? (url), company_domain? (url), custom_fields? (jsonArray)
+Produces: status (string)
+
+================================================================================
+
+ACTION_ID: auto_dedupe_rows
+NAME: Auto Dedupe
+CATEGORY: Data Operations | CREDITS: 0
+Mark or delete duplicate rows based on a single dedupe column.
+Needs: auto_dedupe_columns (string), select_dedupe_action? (string: mark_as_duplicate | delete_duplicate), ignore_case? (boolean)
+Produces: value_type (string: unique | duplicate)
+
+================================================================================
+
+ACTION_ID: delay_step
+NAME: Delay
+CATEGORY: Data Operations | CREDITS: 0
+Pause a row for a fixed number of seconds before the next action.
+Needs: time (string of seconds — pass quoted, e.g. "60"; UI labels this "Timer" but the PATCH field is `time`, not `timer`)
+Produces: (none)
+
+================================================================================
+
+ACTION_ID: filter                                                                                                                                                                                                                   
+NAME: Filter                                                                                                                                                                                                                        
+CATEGORY: Data Operations | CREDITS: 0                                                                                                                                                                                              
+Skip rows that don't satisfy a set of conditions; passing rows continue down the chain, failing rows stop here.                                                                                                                     
+Needs: path_conditions (array of condition groups — each `{ conditions: [{variable, operator, values?, combinator?}], combinator? }`)                                                                                        
+Produces: (none)                                                                                                                                                                                                             
+                                                                                                                                                                                                                             
+================================================================================                                                                                                                                             
+
+ACTION_ID: lookup_another_floqer_workflow_row
+NAME: Lookup Row from a Floqer Table
+CATEGORY: Data Operations | CREDITS: 0
+Look up a row in another Floqer workflow / sheet by matching a column value.
+Needs: table_to_search (sheet_id UUID, from List Workflows → Get Workflow Overview `data.sheets[].sheet_id`), target_column (column id, from Get Options with target_table in context — context key differs from the PATCH field name), operator (dropdown: eq | contains), value (string), find_all? (boolean)
+Produces: record (object when find_all=false; array of objects when find_all=true), total (number)
+
+================================================================================
+
+ACTION_ID: push_data_to_another_floqer_workflow
+NAME: Send data to another Floq
+CATEGORY: Data Operations | CREDITS: 0
+Send rows from this sheet into another Floqer workflow as new rows.
+Needs: choose_or_create_a_new_workflow (dropdown), select_a_list? (sectionList), choose_columns_to_send_to (jsonArray)
+Produces: (none)
+
+================================================================================
+
+ACTION_ID: push_data_to_sheet
+NAME: Send data to a sheet
+CATEGORY: Data Operations | CREDITS: 0
+Send rows / fan out a structured_array into another sheet on the same workflow.
+Needs: choose_or_create_a_new_sheet (string — destination sheet UUID), select_a_list? (structured_array), choose_columns_to_send_to (jsonArray)
+Produces: summary (string), created_rows (jsonArray), updated_rows (jsonArray), parent (json)
+
+================================================================================
+
+ACTION_ID: merge_employee_finder_structured_array
+NAME: Merge Employee Lists
+CATEGORY: Format Data | CREDITS: 0
+Merge multiple employee structured_arrays from different finders into one.
+Needs: lists_of_employees (structured_array)
+Produces: no_of_employees (number), list_of_employees (structured_array)
+
+================================================================================
+
+ACTION_ID: csv_to_structured_array_format
+NAME: CSV to List
+CATEGORY: Format Data | CREDITS: 0
+Convert a comma-separated string into a structured_array of values.
+Needs: comma_separated_values (string)
+Produces: list (structured_array: value)
+
+================================================================================
+
+ACTION_ID: format_data_using_js_expression
+NAME: Workflow Data Formatter
+CATEGORY: Format Data | CREDITS: 0
+Format data with a JS expression (concatenations, transforms, JSON shaping, conditional logic).
+Needs: data_formatter (js_expression)
+Produces: formatted_data (string)
+
+================================================================================
+
+ACTION_ID: raw_to_structured_array
+NAME: Raw to Structured Array
+CATEGORY: Format Data | CREDITS: 0
+Convert a JSON array (literal or {{ref}}) into a structured_array. Columns are discovered via Get Action Outputs.
+Needs: array (raw_array | string)
+Produces: list (structured_array — columns discovered from the input shape)
+
+================================================================================
+
+ACTION_ID: get_company_or_person_linkedin_posts
+NAME: LinkedIn: Scrape Posts
+CATEGORY: enrich | CREDITS: 2 per 20 posts
+Scrape a person or company's recent LinkedIn posts.
+Needs: linkedin_url (url)
+Produces: linkedin_posts (structured_array: url, post, total_comments, total_reactions, date, time), number_of_posts (number)
+
+================================================================================
+
+ACTION_ID: get_linkedin_post_reactors
+NAME: LinkedIn : Find Reactors & Commenters of a Post
+CATEGORY: enrich | CREDITS: 0.2
+Find people who reacted to / commented on a LinkedIn post.
+Needs: linkedin_post_urn_or_url (url), target_entities? (string: commentors | reactors | both)
+Produces: no_of_reactors (number), list_of_reactors (structured_array: reaction_type, name, sub_title, profile_id, profile_picture, linkedin_url, reaction_link, commentary)
+
+================================================================================
+
+ACTION_ID: scrape_web_page_using_firecrawl
+NAME: Scrape Web Page Content
+CATEGORY: scrape | CREDITS: 0.1
+Scrape a single URL with Firecrawl. Outputs page text + metadata + optional links/HTML.
+Needs: url (url), extract_only_main_content (string: true | false), extract_only_text (string: true | false), include_html_content (string: true | false), include_page_links (string: true | false), proxy_type? (string: basic | stealth | auto)
+Produces: page_title, page_url, content (string), html (string — only when include_html_content="true"), links (raw_array — only when include_page_links="true"), metadata (raw_array)
+
+================================================================================
+
+ACTION_ID: http_api_call
+NAME: HTTP API Call
+CATEGORY: Developer | CREDITS: 0
+Make an arbitrary HTTP request to any external API. Output shape is dynamic — discover via Get Action Outputs.
+Needs: method (dropdown: GET|POST|PUT|PATCH|DELETE), endpoint (url), query_params? (jsonArray), body? (jsonArray), headers? (jsonArray)
+Produces: caller-defined fields registered via Get Action Outputs against the response JSON shape
+
+================================================================================
+
+This file is maintained manually. Last updated: 2026-05-25.
+Full interactive reference: https://floqer.com/docs/reference
+Per-action configuration guides: https://floqer.com/docs/action-detail/{action_id}.txt

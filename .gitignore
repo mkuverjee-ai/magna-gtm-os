@@ -1,0 +1,69 @@
+# ── Secrets: never commit ───────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+credentials.env
+secrets.json
+.magna-gtm-config
+team.env
+
+# ── Working files ───────────────────────────────────────────
+# Lead lists and research ARE committed: a play folder has to be complete enough
+# that anyone on the team can pick it up. Raw dumps and caches are not.
+# (No trailing comments in this file: git treats them as part of the pattern.)
+*.csv
+*.xlsx
+*.xls
+!plays/**/leads/**/*.csv
+!plays/**/research/**/*.csv
+!plays/**/research/**/*.xlsx
+!plays/**/reports/**/*.csv
+!company/**/*.csv
+!company/**/*.xlsx
+**/leads/**/*-raw.csv
+**/leads/**/*-raw.json
+**/leads/**/.cache/
+*-job-dump.json
+.aiark-raw-*.json
+*.db
+*.sqlite
+*.sqlite3
+
+# Documents: only inside plays/ and company/ (size policed by .githooks/pre-commit)
+*.pdf
+*.docx
+*.pptx
+*.pages
+*.key
+!plays/**/*.pdf
+!plays/**/*.docx
+!plays/**/*.pptx
+!company/**/*.pdf
+!company/**/*.docx
+!company/**/*.pptx
+!SETUP.pdf
+
+*.zip
+*.tar.gz
+
+# ── Python / Node ───────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+
+# ── OS / editor ─────────────────────────────────────────────
+.DS_Store
+*.swp
+*~
+.vscode/settings.json
+
+# ── Claude Code internals ───────────────────────────────────
+.claude/projects/
+.claude/settings.local.json
+
+# import_files.py scan plans: absolute laptop paths, per person
+.import/

@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# Magna GTM OS: one-time setup for a teammate.
+#
+#   ./onboard
+#
+# Writes ~/.magna-gtm-config (your name plus the database key, chmod 600),
+# puts gtm-work on your PATH, installs the commit guard, and checks the
+# whole chain. Idempotent: safe to re-run any time.
+# ─────────────────────────────────────────────────────────────
+set -eu
+ACCENT='\033[38;5;39m'; WHITE='\033[1;37m'; DIM='\033[90m'
+GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="$HOME/.magna-gtm-config"
+ok()   { echo -e "  ${GREEN}✓${RESET} $1"; }
+warn() { echo -e "  ${YELLOW}!${RESET} $1"; }
+fail() { echo -e "  ${RED}✗${RESET} $1"; }
+step() { echo ""; echo -e "${ACCENT}──${RESET} ${WHITE}$1${RESET}"; echo ""; }
+
+echo ""
+echo -e "  ${ACCENT}MAGNA${RESET} ${WHITE}GTM OS setup${RESET}"
+echo -e "  ${DIM}About two minutes. Everything is stored in ~/.magna-gtm-config (chmod 600, never committed).${RESET}"
+
+# ── 1. prerequisites ────────────────────────────────────────
+step "1. Prerequisites"
+missing=0
+command -v git     >/dev/null 2>&1 && ok "git"     || { fail "git not found"; missing=1; }
+command -v python3 >/dev/null 2>&1 && ok "python3" || { fail "python3 not found"; missing=1; }
+if command -v claude >/dev/null 2>&1; then ok "Claude Code"; else
+  fail "Claude Code not found"; echo -e "      ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"; missing=1
+fi
+if git -C "$REPO_DIR" remote get-url origin >/dev/null 2>&1; then
+  if git -C "$REPO_DIR" ls-remote --exit-code origin >/dev/null 2>&1; then ok "GitHub access"
+  else fail "git can't reach GitHub, so /save won't be able to push"
+       echo -e "      ${DIM}Run: gh auth login   (choose HTTPS), then re-clone with gh repo clone${RESET}"; missing=1; fi
+else
+  warn "No git remote yet (fine for a first local test; /save needs one to share work)"
+fi
+if python3 -c "
+import os
+try:
+    import certifi; os.environ.setdefault('SSL_CERT_FILE', certifi.where())
+except ImportError: pass
+import urllib.request; urllib.request.urlopen('https://api.github.com', timeout=10)" >/dev/null 2>&1; then
+  ok "Python HTTPS"
+else
+  fail "Python can't make HTTPS requests (missing root certificates)"
+  echo -e "      ${DIM}python3 -m pip install --user --upgrade certifi${RESET}"; missing=1
+fi
+[ "$missing" = 1 ] && { echo ""; fail "Fix the above, then re-run ./onboard"; exit 1; }
+
+cfg_get() { python3 -c "
+import json,os
+try: print(json.load(open(os.path.expanduser('~/.magna-gtm-config'))).get('$1') or '')
+except Exception: print('')" 2>/dev/null; }
+cfg_set() { python3 - "$1" "$2" <<'PY'
+import json, os, sys
+p = os.path.expanduser("~/.magna-gtm-config")
+try: cfg = json.load(open(p))
+except Exception: cfg = {}
+if sys.argv[2]: cfg[sys.argv[1]] = sys.argv[2]
+open(p, "w").write(json.dumps(cfg, indent=2) + "\n"); os.chmod(p, 0o600)
+PY
+}
+
+# ── 2. the team database (optional) ─────────────────────────
+step "2. Team database"
+# team.env, if whoever set up the OS sent you one, fills this in. Gitignored.
+[ -f "$REPO_DIR/team.env" ] && { set -a; . "$REPO_DIR/team.env"; set +a; ok "Loaded team.env"; }
+URL=$(cfg_get MAGNA_DB_URL); KEY=$(cfg_get MAGNA_DB_KEY)
+URL=${URL:-${MAGNA_DB_URL:-}}; KEY=${KEY:-${MAGNA_DB_KEY:-}}
+if [ -z "$URL" ]; then
+  echo "  If your team runs the shared database (see db/schema.sql), paste its URL and key."
+  echo -e "  ${DIM}Press Enter to skip: keys then live on this laptop only, logs go to log/ in the repo.${RESET}"
+  read -r -p "  Database URL (https://<project>.supabase.co): " URL
+  [ -n "$URL" ] && { read -r -s -p "  Database service key: " KEY; echo ""; }
+fi
+cfg_set MAGNA_DB_URL "$URL"; cfg_set MAGNA_DB_KEY "$KEY"
+if [ -n "$URL" ] && [ -n "$KEY" ]; then
+  if (cd "$REPO_DIR" && python3 -c "import gtm; gtm.get('api_keys?select=name&limit=1')") >/dev/null 2>&1; then
+    ok "Database reachable"
+  else
+    fail "Couldn't read the database with that URL/key. Has db/schema.sql been run? Re-run ./onboard to retry."
+  fi
+else
+  warn "No database: working in local mode"
+fi
+
+# ── 3. who are you ──────────────────────────────────────────
+step "3. Who are you?"
+NAME=$(cfg_get name)
+if [ -n "$NAME" ]; then
+  echo -e "  Currently: ${WHITE}${NAME}${RESET}"; read -r -p "  Keep it? [Y/n] " k
+  case "$k" in [Nn]*) NAME="" ;; esac
+fi
+if [ -z "$NAME" ]; then
+  # Pick from the team list rather than typing: a typo splits one person into two in every log.
+  TEAM=$(cd "$REPO_DIR" && python3 gtm.py team 2>/dev/null || true)
+  if [ -n "$TEAM" ]; then
+    i=0; while IFS= read -r n; do i=$((i+1)); echo "    $i. $n"; done <<< "$TEAM"
+    echo "    $((i+1)). I'm new, I'm not on the list"
+    while :; do
+      read -r -p "  Number: " pick
+      if [ "$pick" = "$((i+1))" ]; then read -r -p "  Your full name: " NAME; [ -n "$NAME" ] && break
+      else NAME=$(echo "$TEAM" | sed -n "${pick}p"); [ -n "$NAME" ] && break; fi
+      echo "  Pick a number from the list."
+    done
+  else
+    read -r -p "  Your full name: " NAME
+  fi
+fi
+cfg_set name "$NAME"; ok "You are ${WHITE}${NAME}${RESET}"
+
+# ── 4. PATH + guard ─────────────────────────────────────────
+step "4. gtm-work on your PATH"
+RC="$HOME/.zshrc"; [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ] && RC="$HOME/.bashrc"
+touch "$RC"
+if grep -q "$REPO_DIR" "$RC" 2>/dev/null; then ok "Already on your PATH"
+else echo "export PATH=\"$REPO_DIR:\$PATH\"" >> "$RC"; ok "Added to $RC (open a new terminal, or: source $RC)"; fi
+chmod +x "$REPO_DIR/gtm-work" "$REPO_DIR/gtm.py" "$REPO_DIR/onboard" "$REPO_DIR"/scripts/*.sh 2>/dev/null || true
+(cd "$REPO_DIR" && git config core.hooksPath .githooks) 2>/dev/null && ok "Commit guard installed (blocks keys and files over 25MB)"
+
+# ── 5. keys ─────────────────────────────────────────────────
+step "5. Tool keys"
+(cd "$REPO_DIR" && python3 gtm.py keys) || true
+echo ""
+echo -e "  Add any missing must-have key with:  ${WHITE}python3 gtm.py set-key INSTANTLY_API_KEY${RESET}"
+echo -e "  ${DIM}(paste the value, Enter, Ctrl-D). With a database, one person sets it for everyone.${RESET}"
+
+# ── 6. check ────────────────────────────────────────────────
+step "6. Check"
+(cd "$REPO_DIR" && python3 gtm.py doctor) || true
+echo ""
+ok "Done. From now on, start every session with: ${WHITE}gtm-work${RESET}"
+echo ""
