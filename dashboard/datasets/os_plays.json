@@ -2,13 +2,14 @@
   "title": "GTM OS test plays",
   "description": "Plays built in the GTM OS for testing, with segment, offer, success bar and results. Its own table, separate from the machine.",
   "source": {
-    "kind": "call",
+    "kind": "query",
     "connector": "n8n",
     "tool": "get_data_table_rows",
     "args": {
       "dataTableId": "Ox3tQlUv0hYDkvMp",
       "projectId": "VMz3etLKQWG9fjUc",
-      "limit": 100
+      "limit": 100,
+      "skip": 0
     }
   }
 }

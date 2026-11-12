@@ -2,13 +2,14 @@
   "title": "Coach learnings",
   "description": "What the machine's Coach found and its status, read-only.",
   "source": {
-    "kind": "call",
+    "kind": "query",
     "connector": "n8n",
     "tool": "get_data_table_rows",
     "args": {
       "dataTableId": "QPzPM13wORNV8SXu",
       "projectId": "VMz3etLKQWG9fjUc",
-      "limit": 100
+      "limit": 100,
+      "skip": 0
     }
   }
 }
