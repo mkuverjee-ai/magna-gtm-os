@@ -117,7 +117,7 @@
     <h2>Tests before anything reaches the machine</h2>
     <p class="os-note">Same rule the Coach uses: 30+ sends per arm before reading a result. A test that wins becomes a proposal for the machine; you decide.</p>
     <div class="os-wrap">
-      <table class="os-table" data-source="os_tests" data-row-key="code">
+      <table class="os-table" data-source="os_tests" data-row-key="id">
         <thead><tr><th data-field="code">Test</th><th data-field="name">What</th><th data-field="arms">Arms</th><th data-field="size">Size</th><th data-field="win_rule">Wins if</th><th data-field="needs">Needs</th><th data-field="status">Status</th><th data-field="result">Result</th></tr></thead>
         <tbody data-draw="test-rows"></tbody>
       </table>
@@ -174,12 +174,14 @@
 window.OS_MEDIAN = 0.64;
 window.OS_TOP = 2.75;
 window.OS_MIN_SENT = 50;
+// The OS tables are logs: the newest row (highest id) for each play or test is the live one.
+window.osLatest = (rows, key) => { const m = new Map(); rows.forEach((r) => { const k = r[key]; const cur = m.get(k); if (!cur || (+r.id || 0) > (+cur.id || 0)) m.set(k, r); }); return [...m.values()]; };
 
 dash.calc('os_plays_summary', {
   inputs: ['os_plays'],
   title: 'Test plays totals',
-  description: 'Number of OS test plays and emails sent from them.',
-  fn: (plays) => [{ plays: plays.length, sent: d3.sum(plays, (p) => +p.sent || 0) }]
+  description: 'Live OS test plays (newest row per play, dropped ones left out) and emails sent from them.',
+  fn: (plays) => { const live = window.osLatest(plays, 'slug').filter((p) => p.status !== 'dropped'); return [{ plays: live.length, sent: d3.sum(live, (p) => +p.sent || 0) }]; }
 });
 dash.calc('plan_summary', {
   inputs: ['plan'],
@@ -279,12 +281,13 @@ function emptyRow(tbody, n, text) {
 dash.draw('os-plays', (el) => {
   const d = dash.data('os_plays');
   if (d.status !== 'ok') { el.textContent = d.status === 'loading' ? '' : 'Failed to load'; return; }
-  el.replaceChildren(...d.data.map((p) => {
+  el.replaceChildren(...window.osLatest(d.data, 'slug').filter((p) => p.status !== 'dropped').map((p) => {
+    const where = 'id=' + encodeURIComponent(p.id);
     const c = document.createElement('article'); c.className = 'os-card'; c.id = 'play-' + p.slug;
     const top = document.createElement('div'); top.className = 'os-card-top';
     const h = document.createElement('h4'); h.textContent = p.title;
-    h.setAttribute('data-source', 'os_plays'); h.setAttribute('data-field', 'title'); h.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
-    const st = pill(p.status); st.setAttribute('data-source', 'os_plays'); st.setAttribute('data-field', 'status'); st.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
+    h.setAttribute('data-source', 'os_plays'); h.setAttribute('data-field', 'title'); h.setAttribute('data-where', where);
+    const st = pill(p.status); st.setAttribute('data-source', 'os_plays'); st.setAttribute('data-field', 'status'); st.setAttribute('data-where', where);
     top.append(h, st);
     const seg = document.createElement('div'); seg.className = 'os-seg'; seg.textContent = p.segment;
     const dl = document.createElement('dl'); dl.className = 'os-dl';
@@ -294,7 +297,7 @@ dash.draw('os-plays', (el) => {
     const nums = document.createElement('div'); nums.className = 'os-nums';
     [['sent', 'sent'], ['replies', 'replies'], ['positive', 'positive'], ['meetings', 'meetings']].forEach(([f, label]) => {
       const s = document.createElement('span'); const b = document.createElement('b');
-      b.textContent = fmt(+p[f] || 0); b.setAttribute('data-source', 'os_plays'); b.setAttribute('data-field', f); b.setAttribute('data-where', 'slug=' + encodeURIComponent(p.slug));
+      b.textContent = fmt(+p[f] || 0); b.setAttribute('data-source', 'os_plays'); b.setAttribute('data-field', f); b.setAttribute('data-where', where);
       s.append(b, ' ' + label); nums.appendChild(s);
     });
     const log = document.createElement('p'); log.className = 'os-note'; log.textContent = p.log || '';
@@ -320,7 +323,7 @@ dash.draw('history-rows', (tb) => {
 dash.draw('test-rows', (tb) => {
   const d = dash.data('os_tests');
   if (d.status !== 'ok') { tb.replaceChildren(); return; }
-  rows(tb, d.data, 'code', [{ f: 'code' }, { f: 'name' }, { f: 'arms' }, { f: 'size' }, { f: 'win_rule' }, { f: 'needs' }, { f: 'status', pill: true }, { f: 'result' }]);
+  rows(tb, window.osLatest(d.data, 'code').sort((a, b) => String(a.code).localeCompare(String(b.code))), 'id', [{ f: 'code' }, { f: 'name' }, { f: 'arms' }, { f: 'size' }, { f: 'win_rule' }, { f: 'needs' }, { f: 'status', pill: true }, { f: 'result' }]);
 });
 
 dash.draw('skill-rows', (tb) => {
