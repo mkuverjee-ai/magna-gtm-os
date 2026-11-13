@@ -104,3 +104,8 @@ Thanks,
       conversations; otherwise reword to "One pattern worth checking".
 - [ ] The executive briefing (CEO note) is a real offer the sales team can deliver.
 - [ ] Version A for the same technical buyers comes from the machine's copywriter, unchanged.
+
+## On the live dashboard (13 Nov 2026)
+
+Approve page: 'Use version C' appears on financial-services leads and fills in this sequence. Until
+Minal confirms it, follow-up 1 opens with "One pattern worth checking" rather than "One pattern we see".

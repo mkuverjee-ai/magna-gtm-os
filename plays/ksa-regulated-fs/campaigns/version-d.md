@@ -57,8 +57,20 @@ Thanks,
 
 ---
 
+## Email 4 (day 16)
+
+Hi {salutation},
+
+A last quick note from me. If the timing is better later in the year, just reply "later" and I will
+follow up then.
+
+Thanks,
+
+---
+
 ## Notes
 
 - No price is named ("complimentary AI assessment"), so the subject and body stay clear of money words.
-- Three emails instead of four, to keep it simple.
+- Four short emails, so the machine's own fourth email never follows a D sequence.
+- On the live dashboard: Approve page, 'Use version D' on any draft fills these in for that lead.
 - The CEO note in PLAY.md still goes to the CEO in every arm.
