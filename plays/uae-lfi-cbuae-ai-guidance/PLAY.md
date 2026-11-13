@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | planning |
+| **Status** | paused (13 Nov 2026: T1 moved to plays/ksa-regulated-fs under ICP version 2) |
 | **Owner** | Minal |
 | **Started** | 2026-11-12 |
 | **Segment** | Risk, compliance, security and data leaders at CBUAE-licensed financial institutions (banks, insurers, finance companies) that already run AI in customer-facing work. Mid-sized and Enterprise. ~120 contacts for T1, count to be measured (see research). |
@@ -45,3 +45,4 @@ could be verified on 12 Nov 2026, so a Saudi version would rest on an unverified
 
 - 2026-11-12: play started in the GTM OS for Phase 2 testing. Nothing sent.
 - 2026-11-12: segment moved from Saudi (SAMA) to UAE (CBUAE) because only the UAE trigger is verified.
+- 2026-11-13: paused. ICP version 2 puts Saudi Arabia first; T1 moved to plays/ksa-regulated-fs.
