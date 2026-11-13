@@ -8,6 +8,7 @@ Claude loads these on demand. Company positioning and proof live in `company/con
 |---|---|
 | `gtm-philosophy` | Core GTM principles and how to coordinate channels. |
 | `outreach-4-categories` | Sort leads into Inbound, Postbound, Bridgebound or Outbound and pick the approach. |
+| `defining-icp` | Narrow a segment to a beachhead: three unique attributes, uniform reachability, cold-outbound validation (Lenny's Podcast, MIT). |
 | `icp-matrix` | Build a 5-sheet ICP Matrix (accounts, prospects, personas, signal scoring, case studies) as .xlsx + CSVs. |
 | `icp-tam-mapper` | Turn a domain or segment into an ICP Matrix plus a live AI Ark TAM/SAM/SOM breakdown. |
 | `tam-scoring` | Build an 80-100 point scoring model and tier a company list T1-T4. |
