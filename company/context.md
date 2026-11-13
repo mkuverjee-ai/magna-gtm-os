@@ -118,7 +118,30 @@ An offer that wins (30+ sends per arm, clearly better reply or meeting rate) bec
 
 ## ICP
 
-One ICP for every product. Score every account on the points model below; business model carries the most signal.
+### Version 2 (13 Nov 2026): four layers, from the real pipeline
+
+Built from Magna's sales pipeline (151 deals, 103 open worth $282.6M gross, 47 lost, 1 won; internal,
+never named in outreach). Saudi Arabia holds most deals and value; deals come by referral and
+partners, none from cold outreach; buyers are large institutions; MagnaFORGE carries the most value.
+Win rate so far 1 of 48 closed: too early to call any segment a winner.
+
+| Layer | Who | Buying committee | How they come in | Machine's role |
+|---|---|---|---|---|
+| **A. Saudi sovereign and semi-government** | Ministries, authorities, royal commissions, government funds, giga-project developers, government health holding companies | CEO, Governor or Deputy Minister decides · CIO, CDO or CTO evaluates · CISO for security | Referral, RFP, events | Research, signals, meeting briefings; cold email only in campaigns Minal launches |
+| **B. AI infrastructure** | GPU and data-centre buyers: telcos, AI clouds, data-centre developers, governments (KSA, Pakistan, Oman, Africa, Malaysia) | CEO decides · CTO evaluates | Partners, distributors, referrals | Signals and research; outreach only in launched campaigns |
+| **C. Large regulated enterprises (outbound beachhead)** | Saudi banks, insurers, finance companies, telcos, private hospital groups; 1,000+ staff first | CEO decides, CIO or CDO evaluates: draft for both, CISO when the angle is security | Cold email + partner introductions | Full outbound |
+| **D. Partners** | Resellers, distributors, system integrators in KSA, Qatar, UAE | Partner MD or sales lead | Partner recruitment | Separate motion, never in customer sequences |
+
+- **Do not contact** any account with an open or recently lost deal: it belongs to its seller (machine
+  `send_settings` key `pipeline_accounts`, 199 names on 13 Nov 2026).
+- **Size:** priority 1 = 1,000+ staff or a government entity of any size; priority 2 = 250-1,000.
+- **Geography:** Saudi Arabia first; then Oman, Qatar, UAE; Pakistan for infrastructure.
+- **Default first step:** CEO, a short executive briefing on sovereign AI for their sector; CIO or CDO,
+  the matching first step (catalogue pilot, AI system sizing, governed agent pilot); CISO, a security
+  governance review. The use-case workshop only when the lead asks for use cases (it is a common way
+  in, but many of the lost deals were small use-case projects).
+
+The sections below still apply where version 2 does not override them.
 
 ### Who (business model, the key qualifier)
 
@@ -181,7 +204,7 @@ Also: posting about sovereign AI or AI infrastructure 2+ times a month. Earnings
 4. **Funds:** Chief Investment Officer.
 5. **Functional buyers** (13 Nov): CHRO, CPO, CFO office, Head of Customer Service, CDO / Head of Data and Analytics, Facilities head, General Counsel, at Mid-sized and Enterprise accounts. First step: a governed agent pilot in their function. Strong library examples: nationalisation quota engine (HR), Arabic procurement and contract analyser (procurement), climate-adaptive building engine (facilities).
 
-**Lead with the CIO, CTO or CISO** (13 Nov): all their library use cases are production proven; the CEO list has 1 of 10. Board-level buyers only under their signal rule.
+**Buying committee (ICP v2, corrects the earlier 'lead with the CIO' rule):** on real deals the CEO, Governor or Group CEO decides (38 of 78 named contacts) and the CIO, CTO, CDO or CISO evaluates. Draft for both in layer C accounts, on different days.
 
 Secondary: Head of AI/Data Science, Head of Innovation, Head of Cybersecurity, Head of Strategy. Eligible levels: Manager, Senior Manager, Team Lead, Head, Director, VP, SVP, EVP, C-level, GM, MD, founders and owners. **Avoid:** individual contributors (engineer, developer, analyst, specialist, coordinator, assistant, associate, intern, technician, administrator), procurement clerks, cloud/AWS/Azure specialists. In banks, "Managing Director" is often a rank, so judge the function.
 
@@ -209,6 +232,7 @@ Secondary: Head of AI/Data Science, Head of Innovation, Head of Cybersecurity, H
 - [ ] **Global reach:** should geography become a scoring weight instead of a gate (any country outside the four exclusions qualifies)? (Infrastructure operators and neo-clouds were added as business model 5 on 13 Nov.)
 - [ ] **Website naming:** magnaai.com still lists MagnaFUSION and MagnaREACTOR; outreach uses MagnaFABRIC and MagnaFORGE Reactor and doesn't link to those two pages until marketing updates them.
 - [ ] **SMB page:** the website has no SMB or mid-market page; asked of marketing 13 Nov.
+- [ ] **CRM data (ICP v2):** 41 of 47 lost deals have no loss reason; ICP tier mixes 'Tier' and 'P' scales; Amount gross vs net unconfirmed; company size mostly empty. Fixing these lets the ICP learn from wins and losses.
 - [ ] Kenya and India are in the profile and scoring but not in the matrix geography; Jordan and Afghanistan are unconfirmed.
 - [ ] Megacorps over 25,000 (Aramco, HUMAIN): employee-cap ruling pending with Moataz. Until then account-level, no sequence.
 - [ ] **Offer price:** emails offer "a free AI assessment worth $50K"; the positioning doc and gap analysis put the real entry point at a paid $10-15K assessment. Minal chose to leave it for now (28 Oct).
