@@ -3,8 +3,8 @@
 Read this before writing any copy. Every play inherits it.
 
 > **Source.** Synced on 12 Nov 2026 from the Outbound Machine's `magna_messaging` table (the ICP,
-> rulings, products, offers and message rules its agents use), which holds Minal's rulings up to
-> 1 Nov 2026. Where this file and the machine disagree, the machine is the newer source: re-sync
+> rulings, products, offers and message rules its agents use), updated 13 Nov 2026 with Minal's
+> rulings 1-10 of that day (use-case proof, knowledge base, website, SMB). Where this file and the machine disagree, the machine is the newer source: re-sync
 > rather than edit one side only. Newest ruling wins.
 
 ---
@@ -101,6 +101,8 @@ If a prospect asks who Magna has done this for, hand the thread to Minal; don't 
 
 ## Offers
 
+**Offer by buyer (13 Nov), in follow-up 2:** CISO or CRO → security governance review (D) or MagnaSECURE in shadow mode · CIO or CTO → MagnaFABRIC catalogue pilot or AI system sizing (F) · minister or agency head → AI-factory site feasibility study (C) or MagnaGRID · Head of Data and AI or a functional buyer → governed agent pilot (E) · everyone else → discovery workshop (B) · SMB → MagnaFORGE Core evaluation unit. Offer A below only where no step fits.
+
 **Default (control):** "a free AI assessment worth $50K, identifying where AI can create the most value." It's the only price ever named. See Open questions: the real paid entry point is $10-15K.
 
 **Trial offers** (one per email, used only for leads tagged with that trial; exact wording):
@@ -124,17 +126,20 @@ One ICP for every product. Score every account on the points model below; busine
 2. **Innovative private companies** open to AI transformation, especially regulated ones (banks, insurers, hospitals).
 3. **Data-centre and AI-factory projects**, anywhere.
 4. **Funds:** sovereign wealth funds, PE and VCs buying AI for their portfolio.
+5. **Infrastructure providers and cloud operators** (13 Nov): data-centre operators, regional and neo-cloud providers, telcos selling cloud, GPU owners, for MagnaGRID, MagnaFORGE Reactor and white-label MagnaVERSE. Hyperscalers stay disqualified.
+
+**AI startups are not sales leads** (13 Nov): route them to the Magna Startup Ecosystem programme (compute credits, mentorship, co-selling, investor introductions; magnaai.com/partners) as partners.
 
 Every account needs a sovereignty or data-residency need.
 
 | | |
 |---|---|
 | **Geography** | P1 GCC (Saudi Arabia, UAE, Qatar, Bahrain, Oman, Kuwait) · P2 Malaysia, Taiwan, Pakistan, India, wider South-East Asia · P3 Egypt, Morocco · P4 South Africa, Kenya, Nigeria (other African markets for data-centre projects only, e.g. Algeria, Tunisia) · P5 Germany, UK, France, Australia, Singapore, Philippines, Vietnam, South Korea, Japan, Indonesia. **Hard excluded:** US, China, Israel, Lebanon. Taiwan is allowed for every list (26 Oct) |
-| **Size** | 50 to 25,000 employees (27 Oct). P1 100-1,000 · P2 1,000-25,000 · P3 50-100 only with a real AI or sovereignty signal. Under 50 only if strategic (government entity, fund, data-centre developer). Over 25,000 = account-level only, no sequence (Aramco and HUMAIN pending Moataz). Each campaign picks its own bands: SMB 50-250, Mid-sized 250-1,000, Enterprise 1,000-25,000 |
+| **Size** | 50 to 25,000 employees (27 Oct). P1 100-1,000 · P2 1,000-25,000 · P3 50-100 only with a real AI or sovereignty signal. **SMB 50-250 (13 Nov): only with a regulatory or sovereignty reason** (regulated fintechs and payments, insurtechs, private hospitals, private universities, fund portfolio companies, government suppliers); others are Tier 3. SMB first step: a MagnaFORGE Core evaluation unit or the discovery workshop. Under 50 only if strategic (government entity, fund, data-centre developer). Over 25,000 = account-level only, no sequence (Aramco and HUMAIN pending Moataz). Each campaign picks its own bands: SMB 50-250, Mid-sized 250-1,000, Enterprise 1,000-25,000 |
 | **Revenue** | The real filter is investment capacity. Priority $100M-$1B+, then $10M-$100M, then under $10M if strategic |
-| **Industry** | Any industry with a credible AI use case in the library (28 Oct). Never score a lead down for its industry alone. Priority: 1 government and defence · 2 healthcare and financial services · 3 oil and gas, energy, telecom · 4 education, IT services, manufacturing · 5 any other library vertical. Strongest fit: the nine MagnaVERSE pack industries |
+| **Industry** | Any industry with a credible AI use case in the library (28 Oct); never score a lead down for its industry alone. Named as on magnaai.com (13 Nov): Public Sector & Government (incl. defence) · Banking & Financial Services (incl. insurance) · Healthcare & Life Sciences · Education & Skills · Transportation & Logistics · Manufacturing & Industrial · Energy & Utilities · Technology, Media & Telecom · Professional & Business Services. Priority: 1 public sector and defence · 2 healthcare, financial services · 3 energy, telecom, **transportation and logistics (ports first)** · 4 education, manufacturing, **professional and business services (firms, not individual consultants)** · 5 any other library vertical. Strongest fit: the nine MagnaVERSE pack industries |
 | **Tech stack** | Best: fragmented point-solution AI stack needing integration. Then: hyperscaler-reliant for non-sovereign workloads. Then: basic AI seeking a platform |
-| **Disqualifiers** | Cloud hyperscalers (AWS, Azure, Google Cloud, Oracle, IBM) · point-solution AI vendors (OpenAI, Palantir, C3.ai, Scale AI, Anthropic) · ecosystem component vendors (Databricks, Snowflake, NVIDIA, Wistron, Trend Micro) · competing AI or security vendors · US or China HQ · Algeria for non-data-centre work · no sovereignty or data-residency need · existing client, active prospect or do-not-contact · internal and partner domains (Magna, Trend Micro, Wistron, NVIDIA, ColdIQ) · students, recruiters, freelancers, service-firm consultants · test or junk records |
+| **Disqualifiers** | Cloud hyperscalers (AWS, Azure, Google Cloud, Oracle, IBM) · point-solution AI vendors (OpenAI, Palantir, C3.ai, Scale AI, Anthropic) · ecosystem component vendors (Databricks, Snowflake, NVIDIA, Wistron, Trend Micro) · competing AI or security vendors · US or China HQ · Algeria for non-data-centre work · no sovereignty or data-residency need · existing client, active prospect or do-not-contact · internal and partner domains (Magna, Trend Micro, Wistron, NVIDIA, ColdIQ) · students, recruiters, freelancers, individual consultants (a consulting, legal or BPO firm is a valid account) · test or junk records |
 
 ### Scoring (max 105; apply disqualifiers first)
 
@@ -146,8 +151,10 @@ Every account needs a sovereignty or data-residency need.
 | **Geography (15)** | GCC 15 · North and Sub-Saharan Africa 10 · EU, UK, APAC (incl. Singapore, Malaysia, Indonesia, Jordan, Pakistan, India) 8 · other included markets 5 |
 | **Recency trigger, last 90 days (max 10)** | DC or AI-factory project +10 · new CIO/CTO/CAIO +8 · funding or M&A +7 · AI hiring surge (5+ roles) +5 · new office or expansion +5 |
 | **Stack bonus (max 5)** | Several point-solution AI vendors +5 · Salesforce / MS365 / SharePoint +3 · no AI tooling yet +2 |
+| **Proof bonus (max 5, 13 Nov)** | +5 where the use-case library is strongest: Ports & Maritime, Smart City, Consumer Goods, Tertiary Education, Giga-Projects, Banking · +3 PropTech, E-Commerce & Retail, EdTech, Media & Gaming · 0 others. Proof tags show use-case maturity, not Magna references |
+| **Arabic-first bonus (+3, 13 Nov)** | GCC, Egypt or Morocco accounts whose customers or staff work mainly in Arabic |
 
-If data for a dimension is missing, score 0; never guess. Show the working in the reason, e.g. "78 pts: SOE 35 + live DC project 20 + T1 20 ...".
+Total stays capped at 105; tier thresholds unchanged. If data for a dimension is missing, score 0; never guess. Show the working in the reason, e.g. "78 pts: SOE 35 + live DC project 20 + T1 20 ...".
 
 **Tiers:**
 - **Tier 1 (70-105, ABM):** multi-threaded email, LinkedIn and phone, routed to a senior Magna executive, Minal reviews every touch.
@@ -172,6 +179,9 @@ Also: posting about sovereign AI or AI infrastructure 2+ times a month. Earnings
 2. **Board level:** CEO, Group MD, minister, director general, agency head, when the signal is sovereign AI, an AI factory, a data centre, a national AI programme or a major AI investment.
 3. **Risk and finance:** CRO, Head of Model Risk, Chief Compliance Officer, CFO, when the signal is regulation-driven (SAMA, CBUAE, MAS, NCA, PDPL, POPIA, AI governance rules).
 4. **Funds:** Chief Investment Officer.
+5. **Functional buyers** (13 Nov): CHRO, CPO, CFO office, Head of Customer Service, CDO / Head of Data and Analytics, Facilities head, General Counsel, at Mid-sized and Enterprise accounts. First step: a governed agent pilot in their function. Strong library examples: nationalisation quota engine (HR), Arabic procurement and contract analyser (procurement), climate-adaptive building engine (facilities).
+
+**Lead with the CIO, CTO or CISO** (13 Nov): all their library use cases are production proven; the CEO list has 1 of 10. Board-level buyers only under their signal rule.
 
 Secondary: Head of AI/Data Science, Head of Innovation, Head of Cybersecurity, Head of Strategy. Eligible levels: Manager, Senior Manager, Team Lead, Head, Director, VP, SVP, EVP, C-level, GM, MD, founders and owners. **Avoid:** individual contributors (engineer, developer, analyst, specialist, coordinator, assistant, associate, intern, technician, administrator), procurement clerks, cloud/AWS/Azure specialists. In banks, "Managing Director" is often a rank, so judge the function.
 
@@ -196,7 +206,9 @@ Secondary: Head of AI/Data Science, Head of Innovation, Head of Cybersecurity, H
 
 ## Open questions
 
-- [ ] **Global reach:** should geography become a scoring weight instead of a gate (any country outside the four exclusions qualifies), and should infrastructure operators, NVIDIA Cloud Partners and neo-clouds join the business-model dimension? Not adopted yet.
+- [ ] **Global reach:** should geography become a scoring weight instead of a gate (any country outside the four exclusions qualifies)? (Infrastructure operators and neo-clouds were added as business model 5 on 13 Nov.)
+- [ ] **Website naming:** magnaai.com still lists MagnaFUSION and MagnaREACTOR; outreach uses MagnaFABRIC and MagnaFORGE Reactor and doesn't link to those two pages until marketing updates them.
+- [ ] **SMB page:** the website has no SMB or mid-market page; asked of marketing 13 Nov.
 - [ ] Kenya and India are in the profile and scoring but not in the matrix geography; Jordan and Afghanistan are unconfirmed.
 - [ ] Megacorps over 25,000 (Aramco, HUMAIN): employee-cap ruling pending with Moataz. Until then account-level, no sequence.
 - [ ] **Offer price:** emails offer "a free AI assessment worth $50K"; the positioning doc and gap analysis put the real entry point at a paid $10-15K assessment. Minal chose to leave it for now (28 Oct).
