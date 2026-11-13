@@ -153,7 +153,7 @@ The sections below still apply where version 2 does not override them.
 
 **AI startups are not sales leads** (13 Nov): route them to the Magna Startup Ecosystem programme (compute credits, mentorship, co-selling, investor introductions; magnaai.com/partners) as partners.
 
-Every account needs a sovereignty or data-residency need.
+**The qualifying test (13 Nov 2026):** the organisation uses AI, or could use AI within its business. Sovereignty and data residency are Magna's speciality and lead the message where they matter (government, regulated, data-sensitive accounts); they are not required. An organisation happy to run AI in a public cloud is a valid account.
 
 | | |
 |---|---|
@@ -162,13 +162,13 @@ Every account needs a sovereignty or data-residency need.
 | **Revenue** | The real filter is investment capacity. Priority $100M-$1B+, then $10M-$100M, then under $10M if strategic |
 | **Industry** | Any industry with a credible AI use case in the library (28 Oct); never score a lead down for its industry alone. Named as on magnaai.com (13 Nov): Public Sector & Government (incl. defence) · Banking & Financial Services (incl. insurance) · Healthcare & Life Sciences · Education & Skills · Transportation & Logistics · Manufacturing & Industrial · Energy & Utilities · Technology, Media & Telecom · Professional & Business Services. Priority: 1 public sector and defence · 2 healthcare, financial services · 3 energy, telecom, **transportation and logistics (ports first)** · 4 education, manufacturing, **professional and business services (firms, not individual consultants)** · 5 any other library vertical. Strongest fit: the nine MagnaVERSE pack industries |
 | **Tech stack** | Best: fragmented point-solution AI stack needing integration. Then: hyperscaler-reliant for non-sovereign workloads. Then: basic AI seeking a platform |
-| **Disqualifiers** | Cloud hyperscalers (AWS, Azure, Google Cloud, Oracle, IBM) · point-solution AI vendors (OpenAI, Palantir, C3.ai, Scale AI, Anthropic) · ecosystem component vendors (Databricks, Snowflake, NVIDIA, Wistron, Trend Micro) · competing AI or security vendors · US or China HQ · Algeria for non-data-centre work · no sovereignty or data-residency need · existing client, active prospect or do-not-contact · internal and partner domains (Magna, Trend Micro, Wistron, NVIDIA, ColdIQ) · students, recruiters, freelancers, individual consultants (a consulting, legal or BPO firm is a valid account) · test or junk records |
+| **Disqualifiers** | Cloud hyperscalers (AWS, Azure, Google Cloud, Oracle, IBM) · point-solution AI vendors (OpenAI, Palantir, C3.ai, Scale AI, Anthropic) · ecosystem component vendors (Databricks, Snowflake, NVIDIA, Wistron, Trend Micro) · competing AI or security vendors · US or China HQ · Algeria for non-data-centre work · existing client, active prospect or do-not-contact · internal and partner domains (Magna, Trend Micro, Wistron, NVIDIA, ColdIQ) · students, recruiters, freelancers, individual consultants (a consulting, legal or BPO firm is a valid account) · test or junk records |
 
 ### Scoring (max 105; apply disqualifiers first)
 
 | Dimension | Points |
 |---|---|
-| **Sovereignty need (35)** | Government, military, state-owned 35 · regulated private (SAMA, CBUAE, PDPL, POPIA, MAS apply) 25 · innovative private open to on-prem 15 · cloud-native, no sovereignty signal = disqualify |
+| **Sovereignty and AI fit (35)** | Government, military, state-owned 35 · regulated private (SAMA, CBUAE, PDPL, POPIA, MAS apply) 25 · private open to on-prem or in-country 15 · any other organisation that uses or could use AI 8 (no longer a disqualifier, 13 Nov) |
 | **Active AI initiative (20)** | Live project or press release 20 · budget, RFP or hiring a VP AI/CDO/CAIO 15 · stated leadership intent 10 · none 0 (still engage and offer to help start; ruling 1 Nov) |
 | **Deal type (20)** | Sovereign or DC / AI-factory deal 20 · innovative private 15 · SWF, VC, PE 12 · channel partner or SI 8 |
 | **Geography (15)** | GCC 15 · North and Sub-Saharan Africa 10 · EU, UK, APAC (incl. Singapore, Malaysia, Indonesia, Jordan, Pakistan, India) 8 · other included markets 5 |
