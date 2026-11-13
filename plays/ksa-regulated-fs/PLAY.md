@@ -10,7 +10,7 @@
 | **Offer** | Follow-up 2 by buyer (ICP v2): CIO/CDO a catalogue pilot or AI system sizing; CISO a security governance review. |
 | **Platform** | instantly, Gulf campaign (Sunday to Thursday, 08:30-11:30 and 13:00-15:30 Riyadh time) |
 | **Campaigns** | none yet. Created as a DRAFT only after Minal says "launch it". |
-| **Tests** | T1 (version A vs version C copy). T3 follows. |
+| **Tests** | T1 (three arms: version A, version C, version D). T3 follows. |
 
 ## Why this segment
 
@@ -28,18 +28,20 @@ again on the day the list is built.
 
 ## Success bar
 
-- Read positive replies per arm on the CIO/CDO/CISO contacts. 60 per arm shows a direction only;
+- Read positive replies per arm on the CIO/CDO/CISO contacts (about 180 contacts for three arms). 60 per arm shows a direction only;
   250 per arm calls a winner. Stop early at 0 positive replies in 100 sends.
 - Any reply from a CEO is logged separately (not part of the copy test).
 
 ## Test design (T1)
 
 1. Build the account list (research/accounts.md), then one technical buyer and the CEO per account.
-2. Split ACCOUNTS by alternating rows: in arm A the technical buyer gets the machine's version A, in
-   arm C version C (campaigns/version-c.md). The CEO in both arms gets the same CEO note, 4 days later.
+2. Split ACCOUNTS into three by rotating rows: the technical buyer gets version A (the machine's draft),
+   version C (campaigns/version-c.md) or version D, the simple introduction (campaigns/version-d.md).
+   The CEO in every arm gets the same CEO note, 4 days later.
 3. Same sender pool, days, windows and follow-up timing (day 0, 4, 9, 16).
 4. Minal approves every draft before anything is loaded.
 
 ## Log
 
 - 2026-11-13: play created; T1 moved here from the UAE play under ICP version 2. Nothing sent.
+- 2026-11-13: version D added at Minal's request (simple introduction and a direct ask); T1 is now three arms.
